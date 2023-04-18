@@ -25,6 +25,9 @@ float prevSeconds = 0;
 float hours = 0;  // logged flight hours
 float wattsHoursUsed = 0;
 
+// sensor states
+bool bmpPresent = false;
+
 uint16_t _volts = 0;
 uint16_t _temperatureC = 0;
 int16_t _amps = 0;
@@ -42,7 +45,6 @@ float prevKwh = 0;
 // ALTIMETER
 float ambientTempC = 0;
 float altitudeM = 0;
-float aglM = 0;
 float lastAltM = 0;
 
 Adafruit_BMP3XX bmp;
