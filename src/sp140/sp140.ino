@@ -147,7 +147,7 @@ void setup140() {
   initBuzz();
   bmpPresent = initBmp();
   getAltitudeM();  // throw away first value
-  initVibe();
+  vibePresent = initVibe();
 }
 
 // main loop - everything runs in threads

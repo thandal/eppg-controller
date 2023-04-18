@@ -27,6 +27,7 @@ float wattsHoursUsed = 0;
 
 // sensor states
 bool bmpPresent = false;
+bool vibePresent = false;
 
 uint16_t _volts = 0;
 uint16_t _temperatureC = 0;
