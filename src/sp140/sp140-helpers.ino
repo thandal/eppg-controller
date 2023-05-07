@@ -114,12 +114,15 @@ void dispValue(float value, float &prevVal, int maxDigits, int precision, int x,
 }
 
 // Start the bmp388 sensor
-void initBmp() {
-  bmp.begin_I2C();
+bool initBmp() {
+  if (!bmp.begin_I2C()) { return false; }
+
   bmp.setOutputDataRate(BMP3_ODR_25_HZ);
   bmp.setTemperatureOversampling(BMP3_OVERSAMPLING_2X);
   bmp.setPressureOversampling(BMP3_OVERSAMPLING_4X);
   bmp.setIIRFilterCoeff(BMP3_IIR_FILTER_COEFF_15);
+
+  return true;
 }
 
 // initialize the buzzer
@@ -128,11 +131,15 @@ void initBuzz() {
 }
 
 // initialize the vibration motor
-void initVibe() {
-  vibe.begin();
+bool initVibe() {
+  if (!ENABLE_VIB) { return false; }
+  if (!vibe.begin()) { return false; }
+ 
   vibe.selectLibrary(1);
   vibe.setMode(DRV2605_MODE_INTTRIG);
-  vibrateNotify();
+  vibrateNotify();  // initial boot vibration
+
+  return true;
 }
 
 // on boot check for button to switch mode

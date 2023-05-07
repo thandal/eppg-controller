@@ -61,7 +61,7 @@ void blinkLED() {
 }
 
 bool runVibe(unsigned int sequence[], int siz) {
-  if (!ENABLE_VIB) { return false; }
+  if (!vibePresent) { return false; }
 
   for (int thisVibe = 0; thisVibe < siz; thisVibe++) {
     vibe.setWaveform(thisVibe, sequence[thisVibe]);

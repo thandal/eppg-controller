@@ -145,9 +145,9 @@ void setup140() {
   esc.writeMicroseconds(ESC_DISARMED_PWM);
 
   initBuzz();
-  initBmp();
+  bmpPresent = initBmp();
   getAltitudeM();  // throw away first value
-  initVibe();
+  vibePresent = initVibe();
 }
 
 // main loop - everything runs in threads
@@ -363,10 +363,11 @@ bool throttleSafe() {
 
 // convert barometer data to altitude in meters
 float getAltitudeM() {
-  bmp.performReading();
+  if (!bmpPresent) { return 0; }
+  if (!bmp.performReading()) { return 0; }
+  
   ambientTempC = bmp.temperature;
   float altitudeM = bmp.readAltitude(deviceData.sea_pressure);
-  aglM = altitudeM - armAltM;
   return altitudeM;
 }
 
@@ -505,16 +506,25 @@ void displayTime(int val) {
 
 // display altitude data on screen
 void displayAlt() {
-  float altiudeM = 0;
+  // if no bmp, just display "ERR"
+  if (!bmpPresent) {
+    display.setTextSize(2);
+    display.setCursor (85, 102);
+    display.setTextColor(RED);
+    display.print(F("AL ERR"));
+    return;
+  }
+
+  float altM = 0;
   // TODO make MSL explicit?
   if (armAltM > 0 && deviceData.sea_pressure != DEFAULT_SEA_PRESSURE) {  // MSL
-    altiudeM = getAltitudeM();
+    altM = getAltitudeM();
   } else {  // AGL
-    altiudeM = getAltitudeM() - armAltM;
+    altM = getAltitudeM() - armAltM;
   }
 
   // convert to ft if not using metric
-  float alt = deviceData.metric_alt ? altiudeM : (round(altiudeM * 3.28084));
+  float alt = deviceData.metric_alt ? altM : (round(altM * 3.28084));
 
   dispValue(alt, lastAltM, 5, 0, 70, 102, 2, BLACK, bottom_bg_color);
 
