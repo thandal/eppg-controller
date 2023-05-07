@@ -137,7 +137,7 @@ bool initVibe() {
  
   vibe.selectLibrary(1);
   vibe.setMode(DRV2605_MODE_INTTRIG);
-  vibrateNotify();
+  vibrateNotify();  // initial boot vibration
 
   return true;
 }

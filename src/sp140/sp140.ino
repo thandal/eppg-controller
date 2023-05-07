@@ -509,9 +509,9 @@ void displayAlt() {
   // if no bmp, just display "ERR"
   if (!bmpPresent) {
     display.setTextSize(2);
-    display.setCursor (70, 102);
+    display.setCursor (85, 102);
     display.setTextColor(RED);
-    display.print(F("ERR"));
+    display.print(F("AL ERR"));
     return;
   }
 
