@@ -788,8 +788,7 @@ void handleSerialData(byte buffer[]) {
   raw_telemdata.MOTORDUTY_HI = buffer[15];
   raw_telemdata.MOTORDUTY_LO = buffer[14];
 
-  int motorDuty = (int)(((raw_telemdata.MOTORDUTY_HI << 8) + raw_telemdata.MOTORDUTY_LO) / 10);
-  int currentMotorDuty = (motorDuty / 10); //Motor duty cycle
+  //int motorDuty = (int)(((raw_telemdata.MOTORDUTY_HI << 8) + raw_telemdata.MOTORDUTY_LO) / 10);
 
   // Reserved
   // raw_telemdata.R1 = buffer[17];
@@ -817,80 +816,6 @@ void handleTelemetry() {
   handleSerialData(escDataV2);
 }
 
-
-// OLD
-void parseData() {
-  // LSB First
-  // TODO is this being called even with no ESC?
-
-  _volts = word(escData[1], escData[0]);
-  //_volts = ((unsigned int)escData[1] << 8) + escData[0];
-  telemetryData.volts = _volts / 100.0;
-
-  if (telemetryData.volts > BATT_MIN_V) {
-    telemetryData.volts += 1.5;  // calibration
-  }
-
-  if (telemetryData.volts > 1) {  // ignore empty data
-    voltageBuffer.push(telemetryData.volts);
-  }
-
-  // Serial.print(F("Volts: "));
-  // Serial.println(telemetryData.volts);
-
-  // batteryPercent = mapd(telemetryData.volts, BATT_MIN_V, BATT_MAX_V, 0.0, 100.0); // flat line
-
-  _temperatureC = word(escData[3], escData[2]);
-  telemetryData.temperatureC = _temperatureC/100.0;
-  // reading 17.4C = 63.32F in 84F ambient?
-  // Serial.print(F("TemperatureC: "));
-  // Serial.println(temperatureC);
-
-  _amps = word(escData[5], escData[4]);
-  telemetryData.amps = _amps;
-
-  // Serial.print(F("Amps: "));
-  // Serial.println(amps);
-
-  watts = telemetryData.amps * telemetryData.volts;
-
-  // 7 and 6 are reserved bytes
-
-  _eRPM = escData[11];     // 0
-  _eRPM << 8;
-  _eRPM += escData[10];    // 0
-  _eRPM << 8;
-  _eRPM += escData[9];     // 30
-  _eRPM << 8;
-  _eRPM += escData[8];     // b4
-  telemetryData.eRPM = _eRPM/6.0/2.0;
-
-  // Serial.print(F("eRPM: "));
-  // Serial.println(eRPM);
-
-  _inPWM = word(escData[13], escData[12]);
-  telemetryData.inPWM = _inPWM/100.0;
-
-  // Serial.print(F("inPWM: "));
-  // Serial.println(inPWM);
-
-  _outPWM = word(escData[15], escData[14]);
-  telemetryData.outPWM = _outPWM/100.0;
-
-  // Serial.print(F("outPWM: "));
-  // Serial.println(outPWM);
-
-  // 17 and 16 are reserved bytes
-  // 19 and 18 is checksum
-  telemetryData.checksum = word(escData[19], escData[18]);
-
-  // Serial.print(F("CHECKSUM: "));
-  // Serial.print(escData[19]);
-  // Serial.print(F(" + "));
-  // Serial.print(escData[18]);
-  // Serial.print(F(" = "));
-  // Serial.println(checksum);
-}
 
 // throttle easing function based on threshold/performance mode
 int limitedThrottle(int current, int last, int threshold) {
@@ -1340,7 +1265,6 @@ void setup() {
 
   analogReadResolution(12);     // M0 family chip provides 12bit resolution
   pot.setAnalogResolution(4096);
-  unsigned int startup_vibes[] = { 27, 27, 0 };
   initButtons();
 
   ledBlinkThread.onRun(blinkLED);
@@ -1363,7 +1287,7 @@ void setup() {
 
 #ifdef M0_PIO
   Watchdog.enable(5000);
-  uint8_t eepStatus = eep.begin(eep.twiClock100kHz);
+  eep.begin(eep.twiClock100kHz);
 #elif RP_PIO
   watchdog_enable(5000, 1);
   EEPROM.begin(512);
