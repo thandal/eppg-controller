@@ -9,30 +9,27 @@
 
 #include "../inc/sp140/structs.h"         // data structs
 
-// Arduino "built-in"
-#include <ArduinoJson.h>
-#include <Servo.h>               // to control ESCs
-#include <SPI.h>
-#include <Thread.h>   // run tasks at different intervals
-#include <Wire.h>
-
-// Arduino "external"
 #include <AceButton.h>           // button clicks
 #include <Adafruit_BMP3XX.h>     // barometer
 #include <Adafruit_DRV2605.h>    // haptic controller
 #include <Adafruit_ST7735.h>     // screen
+#include <ArduinoJson.h>
 #include <CircularBuffer.h>      // smooth out readings
 #include <ResponsiveAnalogRead.h>  // smoothing for throttle
+#include <Servo.h>               // to control ESCs
+#include <SPI.h>
 #include <StaticThreadController.h>
+#include <Thread.h>   // run tasks at different intervals
 #include <TimeLib.h>  // convert time to hours mins etc
+#include <Wire.h>
 
 #ifdef USE_TINYUSB
   #include "Adafruit_TinyUSB.h"
 #endif
 
 #ifdef M0_PIO
-  #include <Adafruit_SleepyDog.h>  // watchdog
   #include <extEEPROM.h>  // https://github.com/PaoloP74/extEEPROM
+  #include <Adafruit_SleepyDog.h>  // watchdog
 #elif RP_PIO
   // rp2040 specific libraries here
   #include <EEPROM.h>
@@ -315,9 +312,7 @@ void rebootBootloader() {
 void writeDeviceData() {
   deviceData.crc = crc16((uint8_t*)&deviceData, sizeof(deviceData) - 2);
   #ifdef M0_PIO
-    if (0 != eep.write(EEPROM_OFFSET, (uint8_t*)&deviceData, sizeof(deviceData))) {
-      //Serial.println(F("error writing EEPROM"));
-    }
+    eep.write(EEPROM_OFFSET, (uint8_t*)&deviceData, sizeof(deviceData));
   #elif RP_PIO
     EEPROM.put(EEPROM_OFFSET, deviceData);
     EEPROM.commit();
@@ -338,22 +333,16 @@ void resetDeviceData() {
   writeDeviceData();
 }
 
-// read saved data from EEPROM
+// Read saved data from EEPROM
 void refreshDeviceData() {
-  uint8_t tempBuf[sizeof(deviceData)];
-  uint16_t crc;
-
   #ifdef M0_PIO
-    if (0 != eep.read(EEPROM_OFFSET, tempBuf, sizeof(deviceData))) {
-      // Serial.println(F("error reading EEPROM"));
-    }
+    eep.read(EEPROM_OFFSET, deviceData, sizeof(deviceData));
   #elif RP_PIO
-    EEPROM.get(EEPROM_OFFSET, tempBuf);
+    EEPROM.get(EEPROM_OFFSET, deviceData);
   #endif
-
-  memcpy((uint8_t*)&deviceData, tempBuf, sizeof(deviceData));
-  crc = crc16((uint8_t*)&deviceData, sizeof(deviceData) - 2);
-
+  // Reset the data if there is a checksum error.
+  // TODO: provide some sort of error?
+  uint16_t crc = crc16((uint8_t*)&deviceData, sizeof(deviceData) - 2);
   if (crc != deviceData.crc) {
     resetDeviceData();
   }
@@ -410,34 +399,14 @@ void line_state_callback(bool connected) {
 }
 
 bool sanitizeDeviceData() {
-  bool changed = false;
-
-  if (deviceData.screen_rotation == 1 || deviceData.screen_rotation == 3) {
-  } else {
+  if (deviceData.screen_rotation != 1 && deviceData.screen_rotation != 3)
     deviceData.screen_rotation = 3;
-    changed = true;
-  }
-  if (deviceData.sea_pressure < 0 || deviceData.sea_pressure > 10000) {
+  if (deviceData.sea_pressure < 0 || deviceData.sea_pressure > 10000)
     deviceData.sea_pressure = 1013.25;
-    changed = true;
-  }
-  if (deviceData.metric_temp != true && deviceData.metric_temp != false) {
-    deviceData.metric_temp = true;
-    changed = true;
-  }
-  if (deviceData.metric_alt != true && deviceData.metric_alt != false) {
-    deviceData.metric_alt = true;
-    changed = true;
-  }
-  if (deviceData.performance_mode < 0 || deviceData.performance_mode > 1) {
+  if (deviceData.performance_mode < 0 || deviceData.performance_mode > 1)
     deviceData.performance_mode = 0;
-    changed = true;
-  }
-  if (deviceData.batt_size < 0 || deviceData.batt_size > 10000) {
+  if (deviceData.batt_size < 0 || deviceData.batt_size > 10000)
     deviceData.batt_size = 4000;
-    changed = true;
-  }
-  return changed;
 }
 
 // wipes screen and resets properties
