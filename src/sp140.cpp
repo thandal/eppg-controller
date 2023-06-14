@@ -17,7 +17,6 @@
 #include <CircularBuffer.h>      // smooth out readings
 #include <ResponsiveAnalogRead.h>  // smoothing for throttle
 #include <Servo.h>               // to control ESCs
-#include <SPI.h>
 #include <StaticThreadController.h>
 #include <Thread.h>   // run tasks at different intervals
 #include <TimeLib.h>  // convert time to hours mins etc
@@ -337,7 +336,7 @@ void resetDeviceData() {
 // Read saved data from EEPROM
 void refreshDeviceData() {
   #ifdef M0_PIO
-    eep.read(EEPROM_OFFSET, deviceData, sizeof(deviceData));
+    eep.read(EEPROM_OFFSET, (uint8_t*)&deviceData, sizeof(deviceData));
   #elif RP_PIO
     EEPROM.get(EEPROM_OFFSET, deviceData);
   #endif
