@@ -1,6 +1,6 @@
 // Copyright 2021 <Zach Whitehead>
-#ifndef INC_SP140_M0_CONFIG_H_
-#define INC_SP140_M0_CONFIG_H_
+#ifndef INCLUDE_SP140_M0_CONFIG_H_
+#define INCLUDE_SP140_M0_CONFIG_H_
 
 #include "shared-config.h"
 
@@ -13,15 +13,15 @@
 #define LED_3         38  // output for LED 3
 #define THROTTLE_PIN  A0  // throttle pot input
 
-#define SerialESC  Serial5  // ESC UART connection
+#define SerialESC     Serial5  // ESC UART connection
 
 // SP140
-#define POT_PIN A0
-#define TFT_RST 9
-#define TFT_CS 10
-#define TFT_DC 11
-#define TFT_LITE A1
-#define ESC_PIN 12
-#define ENABLE_VIB            true    // enable vibration
+#define POT_PIN       A0
+#define TFT_RST       9
+#define TFT_CS        10
+#define TFT_DC        11
+#define TFT_LITE      A1
+#define ESC_PIN       12
+#define ENABLE_VIB    true    // enable vibration
 
-#endif  // INC_SP140_M0_CONFIG_H_
+#endif  // INCLUDE_SP140_M0_CONFIG_H_

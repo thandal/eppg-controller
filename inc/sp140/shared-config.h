@@ -1,21 +1,21 @@
 // Copyright 2021 <Zach Whitehead>
-#ifndef INC_SP140_SHARED_CONFIG_H_
-#define INC_SP140_SHARED_CONFIG_H_
+#ifndef INCLUDE_SP140_SHARED_CONFIG_H_
+#define INCLUDE_SP140_SHARED_CONFIG_H_
+
+#define VERSION_MAJOR         5
+#define VERSION_MINOR         8
 
 // Batt setting now configurable by user. Read from device data
-#define BATT_MIN_V 60.0  // 24 * 2.5V per cell
+#define BATT_MIN_V            60.0  // 24 * 2.5V per cell
 
 // Calibration
-#define MAMP_OFFSET 200
-#define VOLT_OFFSET 1.5
+#define MAMP_OFFSET           200
+#define VOLT_OFFSET           1.5
 
-#define VERSION_MAJOR 5
-#define VERSION_MINOR 8
+#define CRUISE_GRACE          1.5  // 1.5 seconds to get off throttle
+#define POT_SAFE_LEVEL        0.05 * 4096  // 5% or less
 
-#define CRUISE_GRACE 1.5  // 1.5 sec period to get off throttle
-#define POT_SAFE_LEVEL 0.05 * 4096  // 5% or less
-
-#define DEFAULT_SEA_PRESSURE 1013.25
+#define DEFAULT_SEA_PRESSURE  1013.25  // millibar
 
 // Library config
 #define NO_ADAFRUIT_SSD1306_COLOR_COMPATIBILITY
@@ -46,4 +46,4 @@
 #define ENABLE_BUZ            true    // enable buzzer
 #define ENABLE_VIB_LOW_BAT    false   // vibrate if armed and battery voltage sags below min volts. Gets pilot's attention.
 
-#endif  // INC_SP140_SHARED_CONFIG_H_
+#endif  // INCLUDE_SP140_SHARED_CONFIG_H_

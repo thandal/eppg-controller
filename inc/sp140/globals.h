@@ -1,6 +1,8 @@
 // Copyright 2021 <Zach Whitehead>
-#ifndef INC_SP140_GLOBALS_H_
-#define INC_SP140_GLOBALS_H_
+#ifndef INCLUDE_SP140_GLOBALS_H_
+#define INCLUDE_SP140_GLOBALS_H_
+
+#include <stdint.h>
 
 byte escData[ESC_DATA_SIZE];
 byte escDataV2[ESC_DATA_V2_SIZE];
@@ -55,4 +57,4 @@ static STR_DEVICE_DATA_140_V1 deviceData;
 
 uint16_t bottom_bg_color = DEFAULT_BG_COLOR;
 
-#endif  // INC_SP140_GLOBALS_H_
+#endif  // INCLUDE_SP140_GLOBALS_H_

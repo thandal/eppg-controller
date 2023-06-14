@@ -2,6 +2,8 @@
 #ifndef INC_SP140_STRUCTS_H_
 #define INC_SP140_STRUCTS_H_
 
+#include <stdint.h>
+
 #pragma pack(push, 1)
 
 // v1 ESC telemetry
@@ -13,8 +15,8 @@ typedef struct {
   float inPWM;
   float outPWM;
   uint8_t statusFlag;
-  word checksum;
-}STR_ESC_TELEMETRY_140;
+  uint16_t checksum;
+} STR_ESC_TELEMETRY_140;
 
 // Internal device data
 typedef struct {
@@ -30,7 +32,7 @@ typedef struct {
   uint8_t btn_mode;     // for future use
   uint8_t unused;     // for future use
   uint16_t crc;        // error check
-}STR_DEVICE_DATA_140_V1;
+} STR_DEVICE_DATA_140_V1;
 
 // v2 ESC telemetry
 typedef struct  {
@@ -79,7 +81,7 @@ typedef struct  {
 typedef struct {
   uint16_t freq;
   uint16_t duration;
-}STR_NOTE;
+} STR_NOTE;
 #pragma pack(pop)
 
 static STR_ESC_TELEMETRY_140 telemetryData;
