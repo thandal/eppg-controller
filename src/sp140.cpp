@@ -2,12 +2,12 @@
 // OpenPPG
 
 #ifdef M0_PIO
-  #include "../inc/sp140/m0-config.h"          // device config
+  #include "sp140/m0-config.h"     // device config
 #else
-  #include "../inc/sp140/rp2040-config.h"         // device config
+  #include "sp140/rp2040-config.h" // device config
 #endif
 
-#include "../inc/sp140/structs.h"         // data structs
+#include "sp140/structs.h"       // data structs
 
 #include <AceButton.h>           // button clicks
 #include <Adafruit_BMP3XX.h>     // barometer
@@ -27,19 +27,20 @@
   #include "Adafruit_TinyUSB.h"
 #endif
 
+// Hardware-specific libraries
 #ifdef M0_PIO
   #include <extEEPROM.h>  // https://github.com/PaoloP74/extEEPROM
   #include <Adafruit_SleepyDog.h>  // watchdog
 #elif RP_PIO
-  // rp2040 specific libraries here
   #include <EEPROM.h>
   #include "hardware/watchdog.h"
   #include "pico/unique_id.h"
 #endif
 
+#include "sp140/globals.h"       // global variables 
+
 #include <Fonts/FreeSansBold12pt7b.h>
 
-#include "../inc/sp140/globals.h"  // device config
 
 using namespace ace_button;
 
@@ -398,7 +399,7 @@ void line_state_callback(bool connected) {
   if (connected) send_usb_serial();
 }
 
-bool sanitizeDeviceData() {
+void sanitizeDeviceData() {
   if (deviceData.screen_rotation != 1 && deviceData.screen_rotation != 3)
     deviceData.screen_rotation = 3;
   if (deviceData.sea_pressure < 0 || deviceData.sea_pressure > 10000)
@@ -1130,7 +1131,6 @@ void displayMeta() {
 // inital screen setup and config
 void initDisplay() {
   display.initR(INITR_BLACKTAB);  // Init ST7735S chip, black tab
-  // display.setSPISpeed(40000000);  // 40MHz SPI speed
 
   pinMode(TFT_LITE, OUTPUT);
   resetDisplay();
