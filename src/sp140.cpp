@@ -5,124 +5,51 @@
 #include "sp140/altimeter.h"
 #include "sp140/device_data.h"
 #include "sp140/display.h"
+#include "sp140/esc_telemetry.h"
 #include "sp140/vibrate.h"
 #include "sp140/watchdog.h"
 #include "sp140/web_usb.h"
 
-#include <AceButton.h>           // button clicks
-#include <CircularBuffer.h>      // smooth out readings
+#include <AceButton.h>             // button clicks
+#include <CircularBuffer.h>        // smooth out readings
 #include <ResponsiveAnalogRead.h>  // smoothing for throttle
-#include <Servo.h>               // to control ESCs
+#include <Servo.h>                 // to control ESC
 #include <StaticThreadController.h>
-#include <Thread.h>   // run tasks at different intervals
+#include <Thread.h>
 #include <Wire.h>
-
-
-byte escData[ESC_DATA_SIZE];
-byte escDataV2[ESC_DATA_V2_SIZE];
-unsigned long cruisedAtMilis = 0;
-unsigned long transmitted = 0;
-unsigned long failed = 0;
-bool cruising = false;
-int prevPotLvl = 0;
-int cruisedPotVal = 0;
-float throttlePWM = 0;
-float batteryPercent = 0;
-float prevBatteryPercent = 0;
-bool throttledFlag = true;
-bool throttled = false;
-unsigned long throttledAtMillis = 0;
-unsigned int throttleSecs = 0;
-
-//float minutes = 0;
-//float seconds = 0;
-//float hours = 0;  // logged flight hours
-
-float wattHoursUsed = 0;
-
-
-uint16_t _volts = 0;
-uint16_t _temperatureC = 0;
-int16_t _amps = 0;
-uint32_t _eRPM = 0;
-uint16_t _inPWM = 0;
-uint16_t _outPWM = 0;
-
-// ESC Telemetry
-float watts = 0;
-
-Servo esc;  // Creating a servo class with name of esc
-
-
-///uint16_t bottom_bg_color = DEFAULT_BG_COLOR;
-
 
 using namespace ace_button;
 
+Servo esc;  // Creating a servo class with name of esc
+
+///uint16_t bottom_bg_color = DEFAULT_BG_COLOR;
 
 static STR_DEVICE_DATA_140_V1 deviceData;
-
-static STR_ESC_TELEMETRY_140 telemetryData;
-static telem_t raw_telemdata;
-
-
-// USB WebUSB object
 
 ResponsiveAnalogRead pot(THROTTLE_PIN, false);
 AceButton button(BUTTON_TOP);
 ButtonConfig* buttonConfig = button.getButtonConfig();
 
-CircularBuffer<float, 50> voltageBuffer;
-CircularBuffer<int, 8> potBuffer;
-
 Thread ledBlinkThread = Thread();
 Thread displayThread = Thread();
 Thread throttleThread = Thread();
 Thread buttonThread = Thread();
-Thread telemetryThread = Thread();
+Thread escThread = Thread();
 Thread counterThread = Thread();
 StaticThreadController<6> threads(&ledBlinkThread, &displayThread, &throttleThread,
-                                  &buttonThread, &telemetryThread, &counterThread);
+                                  &buttonThread, &escThread, &counterThread);
+
+CircularBuffer<int, 8> potBuffer;
+bool cruising = false;
+int cruisedPotVal = 0;
+float throttlePWM = 0;
 
 bool armed = false;
 uint32_t armedAtMilis = 0;
-uint32_t cruisedAtMilisMilis = 0;
 unsigned int armedSecs = 0;
 
-#pragma message "Warning: OpenPPG software is in beta"
 
 /// Utilities
-
-
-// Compute average of the ring buffer for voltage readings
-float getBatteryVoltSmoothed() {
-  float avg = 0.0;
-  using index_t = decltype(voltageBuffer)::index_t;
-  for (index_t i = 0; i < voltageBuffer.size(); i++) {
-    avg += voltageBuffer[i] / voltageBuffer.size();
-  }
-  return avg;
-}
-
-
-void setLEDs(byte state) {
-  digitalWrite(LED_SW, state);
-}
-
-void ledBlinkThreadCallback() {
-  setLEDs(!digitalRead(LED_SW));
-}
-
-void displayThreadCallback() {
-  updateDisplay(deviceData,
-    getBatteryVoltSmoothed(),
-    telemetryData.amps,
-    watts,
-    wattHoursUsed,
-    getAltitude(deviceData),
-    throttleSecs
-  );
-}
 
 
 #ifdef RP_PIO
@@ -145,7 +72,7 @@ void playNote(uint16_t note, uint16_t duration) {
 #endif
 
 bool playMelody(uint16_t melody[], int siz) {
-  if (!ENABLE_BUZ) { return false; }
+  if (!ENABLE_BUZ) return false;
   for (int thisNote = 0; thisNote < siz; thisNote++) {
     // quarter note = 1000 / 4, eigth note = 1000/8, etc.
     int noteDuration = 125;
@@ -155,226 +82,25 @@ bool playMelody(uint16_t melody[], int siz) {
 }
 
 void handleArmFail() {
-  uint16_t melody[] = { 820, 640 };
+  uint16_t melody[] = {820, 640};
   playMelody(melody, 2);
 }
 
-// for debugging
-void printDeviceData() {
-  Serial.print("version major ");
-  Serial.println(deviceData.version_major);
-  Serial.print("version minor ");
-  Serial.println(deviceData.version_minor);
-  Serial.print("armed_time ");
-  Serial.println(deviceData.armed_time);
-  Serial.print("crc ");
-  Serial.println(deviceData.crc);
+
+void escTelemetryThreadCallback() {
+  updateEscTelemetry();
 }
 
-
-
-/// Sp140-Helpers
-
-// new v2
-int CheckFlectcher16(byte byteBuffer[]) {
-    int fCCRC16;
-    int i;
-    int c0 = 0;
-    int c1 = 0;
-
-    // Calculate checksum intermediate bytesUInt16
-    for (i = 0; i < 18; i++) //Check only first 18 bytes, skip crc bytes
-    {
-        c0 = (int)(c0 + ((int)byteBuffer[i])) % 255;
-        c1 = (int)(c1 + c0) % 255;
-    }
-    // Assemble the 16-bit checksum value
-    fCCRC16 = ( c1 << 8 ) | c0;
-    return (int)fCCRC16;
-}
-
-
-
-// Toggle the mode: 0=CHILL, 1=SPORT
-void toggleMode() {
-  if (deviceData.performance_mode == 0) {
-    deviceData.performance_mode = 1;
-  } else {
-    deviceData.performance_mode = 0;
-  }
-  writeDeviceData(&deviceData);
-  uint16_t melody[] = {900, 1976};
-  playMelody(melody, 2);
-}
-
-// new for v2 ESC telemetry
-void handleSerialData(byte buffer[]) {
-  // if(sizeof(buffer) != 22) {
-  //     Serial.print("wrong size ");
-  //     Serial.println(sizeof(buffer));
-  //     return; //Ignore malformed packets
-  // }
-
-  if (buffer[20] != 255 || buffer[21] != 255) {
-    Serial.println("no stop byte");
-
-    return; //Stop byte of 65535 not recieved
-  }
-
-  //Check the fletcher checksum
-  int checkFletch = CheckFlectcher16(buffer);
-
-  // checksum
-  raw_telemdata.CSUM_HI = buffer[19];
-  raw_telemdata.CSUM_LO = buffer[18];
-
-  //TODO alert if no new data in 3 seconds
-  int checkCalc = (int)(((raw_telemdata.CSUM_HI << 8) + raw_telemdata.CSUM_LO));
-
-  // Checksums do not match
-  if (checkFletch != checkCalc) {
-    return;
-  }
-  // Voltage
-  raw_telemdata.V_HI = buffer[1];
-  raw_telemdata.V_LO = buffer[0];
-
-  float voltage = (raw_telemdata.V_HI << 8 | raw_telemdata.V_LO) / 100.0;
-  telemetryData.volts = voltage; //Voltage
-
-  if (telemetryData.volts > BATT_MIN_V) {
-    telemetryData.volts += 1.0; // calibration
-  }
-
-  voltageBuffer.push(telemetryData.volts);
-
-  // Temperature
-  raw_telemdata.T_HI = buffer[3];
-  raw_telemdata.T_LO = buffer[2];
-
-  float rawVal = (float)((raw_telemdata.T_HI << 8) + raw_telemdata.T_LO);
-
-  static int SERIESRESISTOR = 10000;
-  static int NOMINAL_RESISTANCE = 10000;
-  static int NOMINAL_TEMPERATURE = 25;
-  static int BCOEFFICIENT = 3455;
-
-  //convert value to resistance
-  float Rntc = (4096 / (float) rawVal) - 1;
-  Rntc = SERIESRESISTOR / Rntc;
-
-  // Get the temperature
-  float temperature = Rntc / (float) NOMINAL_RESISTANCE; // (R/Ro)
-  temperature = (float) log(temperature); // ln(R/Ro)
-  temperature /= BCOEFFICIENT; // 1/B * ln(R/Ro)
-
-  temperature += 1.0 / ((float) NOMINAL_TEMPERATURE + 273.15); // + (1/To)
-  temperature = 1.0 / temperature; // Invert
-  temperature -= 273.15; // convert to Celcius
-
-  // filter bad values
-  if (temperature < 0 || temperature > 200) {
-    temperature = 0;
-  }
-
-  temperature = (float) trunc(temperature * 100) / 100; // 2 decimal places
-  telemetryData.temperatureC = temperature;
-
-  // Current
-  _amps = word(buffer[5], buffer[4]);
-  telemetryData.amps = _amps / 12.5;
-
-  // Serial.print("amps ");
-  // Serial.print(currentAmpsInput);
-  // Serial.print(" - ");
-
-  watts = telemetryData.amps * telemetryData.volts;
-
-  // Reserved
-  raw_telemdata.R0_HI = buffer[7];
-  raw_telemdata.R0_LO = buffer[6];
-
-  // eRPM
-  raw_telemdata.RPM0 = buffer[11];
-  raw_telemdata.RPM1 = buffer[10];
-  raw_telemdata.RPM2 = buffer[9];
-  raw_telemdata.RPM3 = buffer[8];
-
-  int poleCount = 62;
-  int currentERPM = (int)((raw_telemdata.RPM0 << 24) + (raw_telemdata.RPM1 << 16) + (raw_telemdata.RPM2 << 8) + (raw_telemdata.RPM3 << 0)); //ERPM output
-  int currentRPM = currentERPM / poleCount;  // Real RPM output
-  telemetryData.eRPM = currentRPM;
-
-  // Serial.print("RPM ");
-  // Serial.print(currentRPM);
-  // Serial.print(" - ");
-
-  // Input Duty
-  raw_telemdata.DUTYIN_HI = buffer[13];
-  raw_telemdata.DUTYIN_LO = buffer[12];
-
-  int throttleDuty = (int)(((raw_telemdata.DUTYIN_HI << 8) + raw_telemdata.DUTYIN_LO) / 10);
-  telemetryData.inPWM = (throttleDuty / 10); //Input throttle
-
-  // Serial.print("throttle ");
-  // Serial.print(telemetryData.inPWM);
-  // Serial.print(" - ");
-
-  // Motor Duty
-  raw_telemdata.MOTORDUTY_HI = buffer[15];
-  raw_telemdata.MOTORDUTY_LO = buffer[14];
-
-  //int motorDuty = (int)(((raw_telemdata.MOTORDUTY_HI << 8) + raw_telemdata.MOTORDUTY_LO) / 10);
-
-  // Reserved
-  // raw_telemdata.R1 = buffer[17];
-
-  /* Status Flags
-  # Bit position in byte indicates flag set, 1 is set, 0 is default
-  # Bit 0: Motor Started, set when motor is running as expected
-  # Bit 1: Motor Saturation Event, set when saturation detected and power is reduced for desync protection
-  # Bit 2: ESC Over temperature event occuring, shut down method as per configuration
-  # Bit 3: ESC Overvoltage event occuring, shut down method as per configuration
-  # Bit 4: ESC Undervoltage event occuring, shut down method as per configuration
-  # Bit 5: Startup error detected, motor stall detected upon trying to start*/
-  raw_telemdata.statusFlag = buffer[16];
-  telemetryData.statusFlag = raw_telemdata.statusFlag;
-  // Serial.print("status ");
-  // Serial.print(raw_telemdata.statusFlag, BIN);
-  // Serial.print(" - ");
-  // Serial.println(" ");
-}
-
-// for debugging
-void printRawEscData() {
-  Serial.print(F("DATA: "));
-  for (int i = 0; i < ESC_DATA_V2_SIZE; i++) {
-    Serial.print(escDataV2[i], HEX);
-    Serial.print(F(" "));
-  }
-  Serial.println();
-}
-
-void handleTelemetry() {
-  // Flush the input
-  // TODO: why?
-  while (SerialESC.available() > 0) {
-    SerialESC.read();
-  }
-  SerialESC.readBytes(escDataV2, ESC_DATA_V2_SIZE);
-  //printRawEscData();
-  handleSerialData(escDataV2);
-}
-
-// throttle easing function based on threshold/performance mode
+// Throttle easing function based on threshold/performance mode
+int prevPotLvl = 0;
 int limitedThrottle(int current, int last, int threshold) {
   if (current - last >= threshold) {  // accelerating too fast. limit
-    int limitedThrottle = last + threshold;
+    const int limitedT = last + threshold;
     // TODO: cleanup global var use
-    prevPotLvl = limitedThrottle;  // save for next time
-    return limitedThrottle;
+    prevPotLvl = limitedT;  // save for next time
+    return limitedT;
   } else if (last - current >= threshold * 2) {  // decelerating too fast. limit
-    int limitedThrottle = last - threshold * 2;  // double the decel vs accel
+    const int limitedThrottle = last - threshold * 2;  // double the decel vs accel
     prevPotLvl = limitedThrottle;  // save for next time
     return limitedThrottle;
   }
@@ -383,33 +109,26 @@ int limitedThrottle(int current, int last, int threshold) {
 }
 
 
-
-
 // Thread callback
-unsigned long prevPwrMillis = 0;
+bool throttledUp = false;
+unsigned long throttledUpStartSecs = 0;
+unsigned int throttledUpSecs = 0;
 
 void counterThreadCallback() {
-  // Track wattHoursUsed
-  const unsigned long currentPwrMillis = millis();
-  const float deltaHours = (currentPwrMillis - prevPwrMillis) / 1000.0 / 3600.0;
-  prevPwrMillis = currentPwrMillis;
-  if (armed) wattHoursUsed += round(watts * deltaHours);
 
-  // Track flight time
+  // Update flight time
   if (!armed) {
-    throttledFlag = true;
-    throttled = false;
+    throttledUp = false;
   } else { // armed
-    // start the timer when armed and throttle is above the threshold
-    if (throttlePWM > 1250 && throttledFlag) {
-      throttledAtMillis = millis();
-      throttledFlag = false;
-      throttled = true;
+    // Start the timer when armed and throttle is above the threshold
+    if (throttlePWM > 1250 && !throttledUp) {
+      throttledUp = true;
+      throttledUpStartSecs = millis() / 1000.0;
     }
-    if (throttled) {
-      throttleSecs = (millis() - throttledAtMillis) / 1000.0;
+    if (throttledUp) {
+      throttledUpSecs = millis() / 1000.0 - throttledUpStartSecs;
     } else {
-      throttleSecs = 0;
+      throttledUpSecs = 0;
     }
   }
 }
@@ -417,6 +136,20 @@ void counterThreadCallback() {
 void buttonThreadCallback() {
   button.check();
 }
+
+void setLEDs(byte state) {
+  digitalWrite(LED_SW, state);
+}
+
+void ledBlinkThreadCallback() {
+  setLEDs(!digitalRead(LED_SW));
+}
+
+void displayThreadCallback() {
+  updateDisplay(deviceData, getEscTelemetry(), getAltitude(deviceData),
+                throttledUpSecs);
+}
+
 
 // Returns true if the throttle/pot is below the safe threshold
 bool throttleSafe() {
@@ -427,6 +160,7 @@ bool throttleSafe() {
   return false;
 }
 
+unsigned long cruiseStartSecs = 0;
 void setCruise() {
   // IDEA: fill a "cruise indicator" as long press activate happens
   // or gradually change color from blue to yellow with time
@@ -447,7 +181,7 @@ void setCruise() {
 ///    bottom_bg_color = YELLOW;
 ///    display.fillRect(0, 93, 160, 40, bottom_bg_color);
 
-    cruisedAtMilis = millis();  // start timer
+    cruiseStartSecs = millis() / 1000.0;  // start timer
   }
 }
 
@@ -529,6 +263,18 @@ bool armSystem() {
   return true;
 }
 
+// Toggle the mode: 0=CHILL, 1=SPORT
+void toggleMode() {
+  if (deviceData.performance_mode == 0) {
+    deviceData.performance_mode = 1;
+  } else {
+    deviceData.performance_mode = 0;
+  }
+  writeDeviceData(&deviceData);
+  uint16_t melody[] = {900, 1976};
+  playMelody(melody, 2);
+}
+
 // The event handler for the the buttons
 void handleButtonEvent(AceButton* /* btn */, uint8_t eventType, uint8_t /* st */) {
   switch (eventType) {
@@ -579,12 +325,12 @@ void handleThrottle() {
 
   armedSecs = (millis() - armedAtMilis) / 1000;  // update time while armed
 
-  static int maxPWM = ESC_MAX_PWM;
+  int maxPWM = ESC_MAX_PWM;
   pot.update();
   int potRaw = pot.getValue();
 
   if (cruising) {
-    unsigned long cruisingSecs = (millis() - cruisedAtMilis) / 1000;
+    unsigned long cruisingSecs = millis() / 1000.0 - cruiseStartSecs;
 
     if (cruisingSecs >= CRUISE_GRACE && potRaw > POT_SAFE_LEVEL) {
       removeCruise(true);  // deactivate cruise
@@ -613,7 +359,6 @@ void handleThrottle() {
     // mapping val to min and max pwm
     throttlePWM = mapd(potLvl, 0, 4095, ESC_MIN_PWM, maxPWM);
   }
-
   esc.writeMicroseconds(throttlePWM);  // using val as the signal to esc
 }
 
@@ -625,18 +370,15 @@ void webUsbLineStateCallback(bool connected) {
 
 // The setup function runs once when you press reset or power the board.
 void setup() {
-
   Serial.begin(115200);
-  SerialESC.begin(ESC_BAUD_RATE);
-  SerialESC.setTimeout(ESC_TIMEOUT);
-
-  setupWebUsbSerial(webUsbLineStateCallback);
 
   pinMode(LED_SW, OUTPUT);      // Set up the LED
   pinMode(BUZZER_PIN, OUTPUT);  // Set up the buzzer
 
   analogReadResolution(12);     // M0 family chip provides 12bit resolution
   pot.setAnalogResolution(4096);
+
+  setupWebUsbSerial(webUsbLineStateCallback);
 
   ledBlinkThread.onRun(ledBlinkThreadCallback);
   ledBlinkThread.setInterval(500);
@@ -650,13 +392,14 @@ void setup() {
   throttleThread.onRun(handleThrottle);
   throttleThread.setInterval(22);
 
-  telemetryThread.onRun(handleTelemetry);
-  telemetryThread.setInterval(50);
+  escThread.onRun(escTelemetryThreadCallback);
+  escThread.setInterval(50);
 
   counterThread.onRun(counterThreadCallback);
   counterThread.setInterval(250);
 
   setupButtons();
+  setupEscTelemetry();
   setupDeviceData();
   setupWatchdog();
 
@@ -678,13 +421,11 @@ void setup() {
 // Main loop - everything runs in threads
 void loop() {
   resetWatchdog();
-
   if (!armed && parseWebUsbSerial(&deviceData)) {
     writeDeviceData(&deviceData);
     resetDisplay(deviceData);
     sendWebUsbSerial(deviceData);
   }
-
   threads.run();
 }
 

@@ -162,20 +162,20 @@ void setupDisplay(const STR_DEVICE_DATA_140_V1& deviceData) {
   display.fillScreen(WHITE);
 }
 
-void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData, float volts,
-  float amps, float watts, float wattHours, float altitude,
-  unsigned int throttleSecs) {
-  dispValue(volts, _prevVolts, 5, 1, 84, 42, 2, BLACK, DEFAULT_BG_COLOR);
+void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
+                   const STR_ESC_TELEMETRY_140& escTelemetry,
+                   float altitude, unsigned int throttleSecs) {
+  dispValue(escTelemetry.volts, _prevVolts, 5, 1, 84, 42, 2, BLACK, DEFAULT_BG_COLOR);
   display.print("V");
 
-  dispValue(amps, _prevAmps, 3, 0, 108, 71, 2, BLACK, DEFAULT_BG_COLOR);
+  dispValue(escTelemetry.amps, _prevAmps, 3, 0, 108, 71, 2, BLACK, DEFAULT_BG_COLOR);
   display.print("A");
 
-  const float kWatts = constrain(watts / 1000.0, 0, 50);
+  const float kWatts = constrain(escTelemetry.watts / 1000.0, 0, 50);
   dispValue(kWatts, _prevKilowatts, 4, 1, 10, 42, 2, BLACK, DEFAULT_BG_COLOR);
   display.print("kW");
 
-  const float kwh = wattHours / 1000.0;
+  const float kwh = escTelemetry.wattHours / 1000.0;
   dispValue(kwh, _prevKwh, 4, 1, 10, 71, 2, BLACK, DEFAULT_BG_COLOR);
   display.print("kWh");
 
@@ -192,12 +192,12 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData, float volts,
 
   // Display battery level
   display.setTextColor(BLACK); // remove?
-  const float batteryPercent = getBatteryPercent(volts);
+  const float batteryPercent = getBatteryPercent(escTelemetry.volts);
   // Change battery color based on charge
   int batteryPercentWidth = map((int)batteryPercent, 0, 100, 0, 108);
   display.fillRect(0, 0, batteryPercentWidth, 36, batt2color(batteryPercent));
 
-  if (volts < BATT_MIN_V) {
+  if (escTelemetry.volts < BATT_MIN_V) {
     if (_batteryRedrawOnFaultFlag) {
       _batteryRedrawOnFaultFlag = false;
       display.fillRect(0, 0, 108, 36, DEFAULT_BG_COLOR);
@@ -206,7 +206,7 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData, float volts,
     display.setTextSize(2);
     display.setTextColor(RED);
     display.println("BATTERY");
-    if (volts < 10) {
+    if (escTelemetry.volts < 10) {
       display.print(" ERROR");
     } else {
       display.print(" DEAD");

@@ -9,7 +9,6 @@
   #include <EEPROM.h>
 #endif
 
-// ** Logic for EEPROM **
 # define EEPROM_OFFSET 0  // Address of first byte of EEPROM
 
 #ifdef M0_PIO
@@ -36,7 +35,7 @@ static const uint16_t crc16table[] ={
     0xEF1F, 0xFF3E, 0xCF5D, 0xDF7C, 0xAF9B, 0xBFBA, 0x8FD9, 0x9FF8, 0x6E17, 0x7E36, 0x4E55, 0x5E74, 0x2E93, 0x3EB2, 0x0ED1, 0x1EF0
 };
 
-uint16_t crc16(uint8_t *buf, uint32_t size) {
+uint16_t crc16(const uint8_t* buf, uint32_t size) {
   uint16_t crc = 0;
   for (uint32_t i = 0; i < size; i++)
     crc = (crc << 8) ^ crc16table[buf[i] ^ (crc >> 8)];
@@ -51,14 +50,26 @@ void setupDeviceData() {
   #endif
 }
 
+//// For debugging
+//void printDeviceData(const STR_DEVICE_DATA_140_V1& deviceData) {
+//  Serial.print("version major ");
+//  Serial.println(deviceData.version_major);
+//  Serial.print("version minor ");
+//  Serial.println(deviceData.version_minor);
+//  Serial.print("armed_time ");
+//  Serial.println(deviceData.armed_time);
+//  Serial.print("crc ");
+//  Serial.println(deviceData.crc);
+//}
+
 void sanitizeDeviceData(STR_DEVICE_DATA_140_V1* deviceData) {
   if (deviceData->screen_rotation != 1 && deviceData->screen_rotation != 3)
     deviceData->screen_rotation = 3;
-  if (deviceData->sea_pressure < 0 || deviceData->sea_pressure > 10000)
+  if (deviceData->sea_pressure > 10000)
     deviceData->sea_pressure = 1013.25;
-  if (deviceData->performance_mode < 0 || deviceData->performance_mode > 1)
+  if (deviceData->performance_mode > 1)
     deviceData->performance_mode = 0;
-  if (deviceData->batt_size < 0 || deviceData->batt_size > 10000)
+  if (deviceData->batt_size > 10000)
     deviceData->batt_size = 4000;
 }
 
