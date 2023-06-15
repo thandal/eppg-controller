@@ -1,25 +1,20 @@
-// Copyright 2020 <Zach Whitehead>
-// OpenPPG
+#include "sp140/config.h"
+#include "sp140/structs.h"
+#include "sp140/utilities.h"
 
-#ifdef M0_PIO
-  #include "sp140/m0-config.h"     // device config
-#else
-  #include "sp140/rp2040-config.h" // device config
-#endif
-
-#include "sp140/structs.h"       // data structs
+#include "sp140/altimeter.h"
+#include "sp140/device_data.h"
+#include "sp140/display.h"
+#include "sp140/vibrate.h"
+#include "sp140/watchdog.h"
 
 #include <AceButton.h>           // button clicks
-#include <Adafruit_BMP3XX.h>     // barometer
-#include <Adafruit_DRV2605.h>    // haptic controller
-#include <Adafruit_ST7735.h>     // screen
 #include <ArduinoJson.h>
 #include <CircularBuffer.h>      // smooth out readings
 #include <ResponsiveAnalogRead.h>  // smoothing for throttle
 #include <Servo.h>               // to control ESCs
 #include <StaticThreadController.h>
 #include <Thread.h>   // run tasks at different intervals
-#include <TimeLib.h>  // convert time to hours mins etc
 #include <Wire.h>
 
 #ifdef USE_TINYUSB
@@ -27,24 +22,57 @@
 #endif
 
 // Hardware-specific libraries
-#ifdef M0_PIO
-  #include <extEEPROM.h>  // https://github.com/PaoloP74/extEEPROM
-  #include <Adafruit_SleepyDog.h>  // watchdog
-#elif RP_PIO
-  #include <EEPROM.h>
-  #include "hardware/watchdog.h"
+#ifdef RP_PIO
   #include "pico/unique_id.h"
 #endif
 
-#include "sp140/globals.h"       // global variables 
+byte escData[ESC_DATA_SIZE];
+byte escDataV2[ESC_DATA_V2_SIZE];
+unsigned long cruisedAtMilis = 0;
+unsigned long transmitted = 0;
+unsigned long failed = 0;
+bool cruising = false;
+int prevPotLvl = 0;
+int cruisedPotVal = 0;
+float throttlePWM = 0;
+float batteryPercent = 0;
+float prevBatteryPercent = 0;
+bool throttledFlag = true;
+bool throttled = false;
+unsigned long throttledAtMillis = 0;
+unsigned int throttleSecs = 0;
 
-#include <Fonts/FreeSansBold12pt7b.h>
+//float minutes = 0;
+//float seconds = 0;
+//float hours = 0;  // logged flight hours
+
+float wattHoursUsed = 0;
+
+
+uint16_t _volts = 0;
+uint16_t _temperatureC = 0;
+int16_t _amps = 0;
+uint32_t _eRPM = 0;
+uint16_t _inPWM = 0;
+uint16_t _outPWM = 0;
+
+// ESC Telemetry
+float watts = 0;
+
+Servo esc;  // Creating a servo class with name of esc
+
+
+///uint16_t bottom_bg_color = DEFAULT_BG_COLOR;
 
 
 using namespace ace_button;
 
-Adafruit_ST7735 display = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
-Adafruit_DRV2605 vibe;
+
+static STR_DEVICE_DATA_140_V1 deviceData;
+
+static STR_ESC_TELEMETRY_140 telemetryData;
+static telem_t raw_telemdata;
+
 
 // USB WebUSB object
 #ifdef USE_TINYUSB
@@ -53,11 +81,8 @@ WEBUSB_URL_DEF(landingPage, 1 /*https*/, "config.openppg.com");
 #endif
 
 ResponsiveAnalogRead pot(THROTTLE_PIN, false);
-AceButton button_top(BUTTON_TOP);
-ButtonConfig* buttonConfig = button_top.getButtonConfig();
-#ifdef M0_PIO
-  extEEPROM eep(kbits_64, 1, 64);
-#endif
+AceButton button(BUTTON_TOP);
+ButtonConfig* buttonConfig = button.getButtonConfig();
 
 CircularBuffer<float, 50> voltageBuffer;
 CircularBuffer<int, 8> potBuffer;
@@ -72,19 +97,13 @@ StaticThreadController<6> threads(&ledBlinkThread, &displayThread, &throttleThre
                                   &buttonThread, &telemetryThread, &counterThread);
 
 bool armed = false;
-bool use_hub_v2 = true;
-int page = 0;
-float armAltM = 0;
 uint32_t armedAtMilis = 0;
 uint32_t cruisedAtMilisMilis = 0;
 unsigned int armedSecs = 0;
-unsigned int last_throttle = 0;
 
 #pragma message "Warning: OpenPPG software is in beta"
 
 /// Utilities
-
-#define LAST_PAGE 1  // starts at 0
 
 #ifdef M0_PIO
   #define DBL_TAP_PTR ((volatile uint32_t *)(HMCRAMC0_ADDR + HMCRAMC0_SIZE - 4))
@@ -92,132 +111,45 @@ unsigned int last_throttle = 0;
   #define DBL_TAP_MAGIC_QUICK_BOOT 0xf02669ef
 #endif
 
-// For CRC: Xmodem lookup table 0x1021 poly
-static const uint16_t crc16table[] ={
-    0x0000, 0x1021, 0x2042, 0x3063, 0x4084, 0x50A5, 0x60C6, 0x70E7, 0x8108, 0x9129, 0xA14A, 0xB16B, 0xC18C, 0xD1AD, 0xE1CE, 0xF1EF,
-    0x1231, 0x0210, 0x3273, 0x2252, 0x52B5, 0x4294, 0x72F7, 0x62D6, 0x9339, 0x8318, 0xB37B, 0xA35A, 0xD3BD, 0xC39C, 0xF3FF, 0xE3DE,
-    0x2462, 0x3443, 0x0420, 0x1401, 0x64E6, 0x74C7, 0x44A4, 0x5485, 0xA56A, 0xB54B, 0x8528, 0x9509, 0xE5EE, 0xF5CF, 0xC5AC, 0xD58D,
-    0x3653, 0x2672, 0x1611, 0x0630, 0x76D7, 0x66F6, 0x5695, 0x46B4, 0xB75B, 0xA77A, 0x9719, 0x8738, 0xF7DF, 0xE7FE, 0xD79D, 0xC7BC,
-    0x48C4, 0x58E5, 0x6886, 0x78A7, 0x0840, 0x1861, 0x2802, 0x3823, 0xC9CC, 0xD9ED, 0xE98E, 0xF9AF, 0x8948, 0x9969, 0xA90A, 0xB92B,
-    0x5AF5, 0x4AD4, 0x7AB7, 0x6A96, 0x1A71, 0x0A50, 0x3A33, 0x2A12, 0xDBFD, 0xCBDC, 0xFBBF, 0xEB9E, 0x9B79, 0x8B58, 0xBB3B, 0xAB1A,
-    0x6CA6, 0x7C87, 0x4CE4, 0x5CC5, 0x2C22, 0x3C03, 0x0C60, 0x1C41, 0xEDAE, 0xFD8F, 0xCDEC, 0xDDCD, 0xAD2A, 0xBD0B, 0x8D68, 0x9D49,
-    0x7E97, 0x6EB6, 0x5ED5, 0x4EF4, 0x3E13, 0x2E32, 0x1E51, 0x0E70, 0xFF9F, 0xEFBE, 0xDFDD, 0xCFFC, 0xBF1B, 0xAF3A, 0x9F59, 0x8F78,
-    0x9188, 0x81A9, 0xB1CA, 0xA1EB, 0xD10C, 0xC12D, 0xF14E, 0xE16F, 0x1080, 0x00A1, 0x30C2, 0x20E3, 0x5004, 0x4025, 0x7046, 0x6067,
-    0x83B9, 0x9398, 0xA3FB, 0xB3DA, 0xC33D, 0xD31C, 0xE37F, 0xF35E, 0x02B1, 0x1290, 0x22F3, 0x32D2, 0x4235, 0x5214, 0x6277, 0x7256,
-    0xB5EA, 0xA5CB, 0x95A8, 0x8589, 0xF56E, 0xE54F, 0xD52C, 0xC50D, 0x34E2, 0x24C3, 0x14A0, 0x0481, 0x7466, 0x6447, 0x5424, 0x4405,
-    0xA7DB, 0xB7FA, 0x8799, 0x97B8, 0xE75F, 0xF77E, 0xC71D, 0xD73C, 0x26D3, 0x36F2, 0x0691, 0x16B0, 0x6657, 0x7676, 0x4615, 0x5634,
-    0xD94C, 0xC96D, 0xF90E, 0xE92F, 0x99C8, 0x89E9, 0xB98A, 0xA9AB, 0x5844, 0x4865, 0x7806, 0x6827, 0x18C0, 0x08E1, 0x3882, 0x28A3,
-    0xCB7D, 0xDB5C, 0xEB3F, 0xFB1E, 0x8BF9, 0x9BD8, 0xABBB, 0xBB9A, 0x4A75, 0x5A54, 0x6A37, 0x7A16, 0x0AF1, 0x1AD0, 0x2AB3, 0x3A92,
-    0xFD2E, 0xED0F, 0xDD6C, 0xCD4D, 0xBDAA, 0xAD8B, 0x9DE8, 0x8DC9, 0x7C26, 0x6C07, 0x5C64, 0x4C45, 0x3CA2, 0x2C83, 0x1CE0, 0x0CC1,
-    0xEF1F, 0xFF3E, 0xCF5D, 0xDF7C, 0xAF9B, 0xBFBA, 0x8FD9, 0x9FF8, 0x6E17, 0x7E36, 0x4E55, 0x5E74, 0x2E93, 0x3EB2, 0x0ED1, 0x1EF0
-};
-
-uint16_t crc16(uint8_t *buf, uint32_t size) {
-  uint16_t crc = 0;
-  for (uint32_t i = 0; i < size; i++)
-    crc = (crc << 8) ^ crc16table[buf[i] ^ (crc >> 8)];
-  return crc;
-}
-
-
-// Map double values
-double mapd(double x, double in_min, double in_max, double out_min, double out_max) {
-  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-}
-
-// Map voltage to battery percentage, based on a
-// simple set of data points from load testing.
-float getBatteryPercent(float voltage) {
-  float battPercent = 0;
-  if (voltage > 94.8) {
-    battPercent = mapd(voltage, 94.8, 99.6, 90, 100);
-  } else if (voltage > 93.36) {
-    battPercent = mapd(voltage, 93.36, 94.8, 80, 90);
-  } else if (voltage > 91.68) {
-    battPercent = mapd(voltage, 91.68, 93.36, 70, 80);
-  } else if (voltage > 89.76) {
-    battPercent = mapd(voltage, 89.76, 91.68, 60, 70);
-  } else if (voltage > 87.6) {
-    battPercent = mapd(voltage, 87.6, 89.76, 50, 60);
-  } else if (voltage > 85.2) {
-    battPercent = mapd(voltage, 85.2, 87.6, 40, 50);
-  } else if (voltage > 82.32) {
-    battPercent = mapd(voltage, 82.32, 85.2, 30, 40);
-  } else if (voltage > 80.16) {
-    battPercent = mapd(voltage, 80.16, 82.32, 20, 30);
-  } else if (voltage > 78) {
-    battPercent = mapd(voltage, 78, 80.16, 10, 20);
-  } else if (voltage > 60.96) {
-    battPercent = mapd(voltage, 60.96, 78, 0, 10);
+// Compute average of the ring buffer for voltage readings
+float getBatteryVoltSmoothed() {
+  float avg = 0.0;
+  using index_t = decltype(voltageBuffer)::index_t;
+  for (index_t i = 0; i < voltageBuffer.size(); i++) {
+    avg += voltageBuffer[i] / voltageBuffer.size();
   }
-  return constrain(battPercent, 0, 100);
+  return avg;
 }
 
-/**
- * For digital time display - prints leading 0
- *
- * @param digits number to be converted to a string.
- * @return string `12`, or 07 if `digits` is less than 10.
- */
-String convertToDigits(byte digits) {
-  String digits_string = "";
-  if (digits < 10) digits_string.concat("0");
-  digits_string.concat(digits);
-  return digits_string;
-}
-
-/**
- * Advance to next screen page
- *
- * @return the number of next page
- */
-int nextPage() {
-  display.fillRect(0, 37, 160, 54, DEFAULT_BG_COLOR);
-
-  if (page >= LAST_PAGE) {
-    return page = 0;
-  }
-  return ++page;
-}
-
-void addVSpace() {
-  display.setTextSize(1);
-  display.println(" ");
-}
 
 void setLEDs(byte state) {
-  // digitalWrite(LED_2, state);
-  // digitalWrite(LED_3, state);
   digitalWrite(LED_SW, state);
 }
 
-// toggle LEDs
-void blinkLED() {
-  byte ledState = !digitalRead(LED_SW);
-  setLEDs(ledState);
+void ledBlinkThreadCallback() {
+  setLEDs(!digitalRead(LED_SW));
 }
 
-bool runVibe(unsigned int sequence[], int siz) {
-  if (!vibePresent) { return false; }
-
-  for (int thisVibe = 0; thisVibe < siz; thisVibe++) {
-    vibe.setWaveform(thisVibe, sequence[thisVibe]);
-  }
-  vibe.go();
-  return true;
+void displayThreadCallback() {
+  updateDisplay(deviceData,
+    getBatteryVoltSmoothed(),
+    telemetryData.amps,
+    watts,
+    wattHoursUsed,
+    getAltitude(deviceData),
+    throttleSecs
+  );
 }
+
 
 #ifdef RP_PIO
 // non-blocking tone function that uses second core
-void playNote(uint16_t note, uint16_t duration) {
-    STR_NOTE noteData;
-    // fifo uses 32 bit messages so package up the note and duration
-    uint32_t note_msg;
-    noteData.duration = duration;
-    noteData.freq = note;
-
-    memcpy((uint32_t*)&note_msg, &noteData, sizeof(noteData));
-    rp2040.fifo.push_nb(note_msg);  // send note to second core via fifo queue
+void playNote(uint16_t freq, uint16_t duration) {
+    // fifo uses 32 bit messages, so package up the freq and duration
+    STR_NOTE note;
+    note.f.freq = freq;
+    note.f.duration = duration;
+    rp2040.fifo.push_nb(note.data);  // send note to second core via fifo queue
 }
 #else
 // blocking tone function that delays for notes
@@ -240,8 +172,8 @@ bool playMelody(uint16_t melody[], int siz) {
 }
 
 void handleArmFail() {
-  uint16_t arm_fail_melody[] = { 820, 640 };
-  playMelody(arm_fail_melody, 2);
+  uint16_t melody[] = { 820, 640 };
+  playMelody(melody, 2);
 }
 
 // for debugging
@@ -305,48 +237,6 @@ void rebootBootloader() {
 
 /// Extra-Data
 
-// ** Logic for EEPROM **
-# define EEPROM_OFFSET 0  // Address of first byte of EEPROM
-
-// write to EEPROM
-void writeDeviceData() {
-  deviceData.crc = crc16((uint8_t*)&deviceData, sizeof(deviceData) - 2);
-  #ifdef M0_PIO
-    eep.write(EEPROM_OFFSET, (uint8_t*)&deviceData, sizeof(deviceData));
-  #elif RP_PIO
-    EEPROM.put(EEPROM_OFFSET, deviceData);
-    EEPROM.commit();
-  #endif
-}
-
-// reset eeprom and deviceData to factory defaults
-void resetDeviceData() {
-  deviceData = STR_DEVICE_DATA_140_V1();
-  deviceData.version_major = VERSION_MAJOR;
-  deviceData.version_minor = VERSION_MINOR;
-  deviceData.screen_rotation = 3;
-  deviceData.sea_pressure = DEFAULT_SEA_PRESSURE;  // 1013.25 mbar
-  deviceData.metric_temp = true;
-  deviceData.metric_alt = true;
-  deviceData.performance_mode = 0;
-  deviceData.batt_size = 4000;  // 4kw
-  writeDeviceData();
-}
-
-// Read saved data from EEPROM
-void refreshDeviceData() {
-  #ifdef M0_PIO
-    eep.read(EEPROM_OFFSET, (uint8_t*)&deviceData, sizeof(deviceData));
-  #elif RP_PIO
-    EEPROM.get(EEPROM_OFFSET, deviceData);
-  #endif
-  // Reset the data if there is a checksum error.
-  // TODO: provide some sort of error?
-  uint16_t crc = crc16((uint8_t*)&deviceData, sizeof(deviceData) - 2);
-  if (crc != deviceData.crc) {
-    resetDeviceData();
-  }
-}
 
 
 // ** Logic for WebUSB **
@@ -398,26 +288,6 @@ void line_state_callback(bool connected) {
   if (connected) send_usb_serial();
 }
 
-void sanitizeDeviceData() {
-  if (deviceData.screen_rotation != 1 && deviceData.screen_rotation != 3)
-    deviceData.screen_rotation = 3;
-  if (deviceData.sea_pressure < 0 || deviceData.sea_pressure > 10000)
-    deviceData.sea_pressure = 1013.25;
-  if (deviceData.performance_mode < 0 || deviceData.performance_mode > 1)
-    deviceData.performance_mode = 0;
-  if (deviceData.batt_size < 0 || deviceData.batt_size > 10000)
-    deviceData.batt_size = 4000;
-}
-
-// wipes screen and resets properties
-void resetDisplay() {
-  display.fillScreen(DEFAULT_BG_COLOR);
-  display.setTextColor(BLACK);
-  display.setCursor(0, 0);
-  display.setTextSize(1);
-  display.setTextWrap(true);
-  display.setRotation(deviceData.screen_rotation);  // 1=right hand, 3=left hand
-}
 
 // customized for sp140
 void parse_usb_serial() {
@@ -427,10 +297,10 @@ void parse_usb_serial() {
   deserializeJson(doc, usb_web);
 
   if (doc["command"] && doc["command"] == "rbl") {
-    display.fillScreen(DEFAULT_BG_COLOR);
-    display.setCursor(0, 0);
-    display.setTextSize(2);
-    display.println("BL - UF2");
+///    display.fillScreen(DEFAULT_BG_COLOR);
+///    display.setCursor(0, 0);
+///    display.setTextSize(2);
+///    display.println("BL - UF2");
     rebootBootloader();
     return;  // run only the command
   }
@@ -443,9 +313,8 @@ void parse_usb_serial() {
   deviceData.metric_alt = doc["metric_alt"];  // true/false
   deviceData.performance_mode = doc["performance_mode"];  // 0,1
   deviceData.batt_size = doc["batt_size"];  // 4000
-  sanitizeDeviceData();
-  writeDeviceData();
-  resetDisplay();
+  writeDeviceData(&deviceData);
+  resetDisplay(deviceData);
   send_usb_serial();
 #endif
 }
@@ -453,165 +322,6 @@ void parse_usb_serial() {
 
 
 /// Sp140-Helpers
-
-// track flight timer
-void handleFlightTime() {
-  if (!armed) {
-    throttledFlag = true;
-    throttled = false;
-  } else { // armed
-    // start the timer when armed and throttle is above the threshold
-    if (throttlePWM > 1250 && throttledFlag) {
-      throttledAtMillis = millis();
-      throttledFlag = false;
-      throttled = true;
-    }
-    if (throttled) {
-      throttleSecs = (millis()-throttledAtMillis) / 1000.0;
-    } else {
-      throttleSecs = 0;
-    }
-  }
-}
-
-//**************************************************************************************//
-//  Helper function to print values without flashing numbers due to slow screen refresh.
-//  This function only re-draws the digit that needs to be updated.
-//    BUG:  If textColor is not constant across multiple uses of this function,
-//          weird things happen.
-//**************************************************************************************//
-void dispValue(float value, float &prevVal, int maxDigits, int precision, int x, int y, int textSize, int textColor, int background){
-  int numDigits = 0;
-  char prevDigit[DIGIT_ARRAY_SIZE] = {};
-  char digit[DIGIT_ARRAY_SIZE] = {};
-  String prevValTxt = String(prevVal, precision);
-  String valTxt = String(value, precision);
-  prevValTxt.toCharArray(prevDigit, maxDigits+1);
-  valTxt.toCharArray(digit, maxDigits+1);
-
-  // COUNT THE NUMBER OF DIGITS THAT NEED TO BE PRINTED:
-  for (int i=0; i<maxDigits; i++) {
-    if (digit[i]) {
-      numDigits++;
-    }
-  }
-
-  display.setTextSize(textSize);
-  display.setCursor(x, y);
-
-  // PRINT LEADING SPACES TO RIGHT-ALIGN:
-  display.setTextColor(background);
-  for (int i=0; i<(maxDigits-numDigits); i++) {
-    display.print(static_cast<char>(218));
-  }
-  display.setTextColor(textColor);
-
-  // ERASE ONLY THE NESSESARY DIGITS:
-  for (int i=0; i<numDigits; i++) {
-    if (digit[i]!=prevDigit[i]) {
-      display.setTextColor(background);
-      display.print(static_cast<char>(218));
-    } else {
-      display.setTextColor(textColor);
-      display.print(digit[i]);
-    }
-  }
-
-  // BACK TO THE BEGINNING:
-  display.setCursor(x, y);
-
-  // ADVANCE THE CURSOR TO THE PROPER LOCATION:
-  display.setTextColor(background);
-  for (int i=0; i<(maxDigits-numDigits); i++) {
-    display.print(static_cast<char>(218));
-  }
-  display.setTextColor(textColor);
-
-  // PRINT THE DIGITS THAT NEED UPDATING
-  for(int i=0; i<numDigits; i++){
-    display.print(digit[i]);
-  }
-
-  prevVal = value;
-}
-
-// displays number of minutes and seconds (since armed)
-void displayTime(int val) {
-  int minutes = val / 60;  // numberOfMinutes(val);
-  int seconds = numberOfSeconds(val);
-
-  display.print(convertToDigits(minutes));
-  display.print(":");
-  display.print(convertToDigits(seconds));
-}
-
-// TODO (bug) rolls over at 99mins
-void displayTime(int val, int x, int y, uint16_t bg_color) {
-  // displays number of minutes and seconds (since armed and throttled)
-  display.setCursor(x, y);
-  display.setTextSize(2);
-  display.setTextColor(BLACK);
-  minutes = val / 60;
-  seconds = numberOfSeconds(val);
-  if (minutes < 10) {
-    display.setCursor(x, y);
-    display.print("0");
-  }
-  dispValue(minutes, prevMinutes, 2, 0, x, y, 2, BLACK, bg_color);
-  display.setCursor(x+24, y);
-  display.print(":");
-  display.setCursor(x+36, y);
-  if (seconds < 10) {
-    display.print("0");
-  }
-  dispValue(seconds, prevSeconds, 2, 0, x+36, y, 2, BLACK, bg_color);
-}
-
-// maps battery percentage to a display color
-uint16_t batt2color(int percentage) {
-  if (percentage >= 30) {
-    return GREEN;
-  } else if (percentage >= 15) {
-    return YELLOW;
-  }
-  return RED;
-}
-
-// Start the bmp388 sensor
-bool initBmp() {
-  if (!bmp.begin_I2C()) { return false; }
-
-  bmp.setOutputDataRate(BMP3_ODR_25_HZ);
-  bmp.setTemperatureOversampling(BMP3_OVERSAMPLING_2X);
-  bmp.setPressureOversampling(BMP3_OVERSAMPLING_4X);
-  bmp.setIIRFilterCoeff(BMP3_IIR_FILTER_COEFF_15);
-
-  return true;
-}
-
-// initialize the buzzer
-void initBuzz() {
-  pinMode(BUZZER_PIN, OUTPUT);
-}
-
-void vibrateNotify() {
-  if (!ENABLE_VIB) return;
-  vibe.setWaveform(0, 15);  // 1 through 117 (see example sketch)
-  vibe.setWaveform(1, 0);
-  vibe.go();
-}
-
-// initialize the vibration motor
-bool initVibe() {
-  if (!ENABLE_VIB) { return false; }
-  if (!vibe.begin()) { return false; }
- 
-  vibe.selectLibrary(1);
-  vibe.setMode(DRV2605_MODE_INTTRIG);
-  vibrateNotify();  // initial boot vibration
-
-  return true;
-}
 
 // new v2
 int CheckFlectcher16(byte byteBuffer[]) {
@@ -631,44 +341,18 @@ int CheckFlectcher16(byte byteBuffer[]) {
     return (int)fCCRC16;
 }
 
-// for debugging
-void printRawSentence() {
-  Serial.print(F("DATA: "));
-  for (int i = 0; i < ESC_DATA_V2_SIZE; i++) {
-    Serial.print(escDataV2[i], HEX);
-    Serial.print(F(" "));
-  }
-  Serial.println();
-}
 
-void clearModeDisplay() {
-  String prevMode = (deviceData.performance_mode == 0) ? "SPORT" : "CHILL";
-  display.setCursor(30, 60);
-  display.setTextSize(1);
-  display.setTextColor(DEFAULT_BG_COLOR);
-  display.print(prevMode);
-}
 
-// on boot check for button to switch mode
-void modeSwitch(bool update_display) {
-  // 0=CHILL 1=SPORT 2=LUDICROUS?!
+// Toggle the mode: 0=CHILL, 1=SPORT
+void toggleMode() {
   if (deviceData.performance_mode == 0) {
     deviceData.performance_mode = 1;
   } else {
     deviceData.performance_mode = 0;
   }
-  writeDeviceData();
-  if (update_display) { // clear out old text
-    clearModeDisplay();
-  }
-  uint16_t notify_melody[] = { 900, 1976 };
-  playMelody(notify_melody, 2);
-}
-
-void prepareSerialRead() {  // TODO needed?
-  while (SerialESC.available() > 0) {
-    SerialESC.read();
-  }
+  writeDeviceData(&deviceData);
+  uint16_t melody[] = {900, 1976};
+  playMelody(melody, 2);
 }
 
 // new for v2 ESC telemetry
@@ -809,13 +493,26 @@ void handleSerialData(byte buffer[]) {
   // Serial.println(" ");
 }
 
-void handleTelemetry() {
-  prepareSerialRead();
-  SerialESC.readBytes(escDataV2, ESC_DATA_V2_SIZE);
-  //printRawSentence();
-  handleSerialData(escDataV2);
+// for debugging
+void printRawEscData() {
+  Serial.print(F("DATA: "));
+  for (int i = 0; i < ESC_DATA_V2_SIZE; i++) {
+    Serial.print(escDataV2[i], HEX);
+    Serial.print(F(" "));
+  }
+  Serial.println();
 }
 
+void handleTelemetry() {
+  // Flush the input
+  // TODO: why?
+  while (SerialESC.available() > 0) {
+    SerialESC.read();
+  }
+  SerialESC.readBytes(escDataV2, ESC_DATA_V2_SIZE);
+  //printRawEscData();
+  handleSerialData(escDataV2);
+}
 
 // throttle easing function based on threshold/performance mode
 int limitedThrottle(int current, int last, int threshold) {
@@ -833,42 +530,40 @@ int limitedThrottle(int current, int last, int threshold) {
   return current;
 }
 
-// ring buffer for voltage readings
-float getBatteryVoltSmoothed() {
-  float avg = 0.0;
-
-  if (voltageBuffer.isEmpty()) { return avg; }
-
-  using index_t = decltype(voltageBuffer)::index_t;
-  for (index_t i = 0; i < voltageBuffer.size(); i++) {
-    avg += voltageBuffer[i] / voltageBuffer.size();
-  }
-  return avg;
-}
 
 
 
-
-
-
-// Thread
+// Thread callback
 unsigned long prevPwrMillis = 0;
 
-void trackPower() {
-  unsigned long currentPwrMillis = millis();
-  unsigned long msec_diff = (currentPwrMillis - prevPwrMillis);  // eg 0.30 sec
+void counterThreadCallback() {
+  // Track wattHoursUsed
+  const unsigned long currentPwrMillis = millis();
+  const float deltaHours = (currentPwrMillis - prevPwrMillis) / 1000.0 / 3600.0;
   prevPwrMillis = currentPwrMillis;
+  if (armed) wattHoursUsed += round(watts * deltaHours);
 
-  if (armed) {
-    wattsHoursUsed += round(watts/60/60*msec_diff)/1000.0;
+  // Track flight time
+  if (!armed) {
+    throttledFlag = true;
+    throttled = false;
+  } else { // armed
+    // start the timer when armed and throttle is above the threshold
+    if (throttlePWM > 1250 && throttledFlag) {
+      throttledAtMillis = millis();
+      throttledFlag = false;
+      throttled = true;
+    }
+    if (throttled) {
+      throttleSecs = (millis() - throttledAtMillis) / 1000.0;
+    } else {
+      throttleSecs = 0;
+    }
   }
 }
 
-
-
-void checkButtons() {
-
-  button_top.check();
+void buttonThreadCallback() {
+  button.check();
 }
 
 // Returns true if the throttle/pot is below the safe threshold
@@ -888,17 +583,17 @@ void setCruise() {
     cruising = true;
     vibrateNotify();
 
-    // update display to show cruise
-    display.setCursor(70, 60);
-    display.setTextSize(1);
-    display.setTextColor(RED);
-    display.print(F("CRUISE"));
+///    // update display to show cruise
+///    display.setCursor(70, 60);
+///    display.setTextSize(1);
+///    display.setTextColor(RED);
+///    display.print(F("CRUISE"));
 
-    uint16_t notify_melody[] = { 900, 900 };
-    playMelody(notify_melody, 2);
+    uint16_t melody[] = {900, 900};
+    playMelody(melody, 2);
 
-    bottom_bg_color = YELLOW;
-    display.fillRect(0, 93, 160, 40, bottom_bg_color);
+///    bottom_bg_color = YELLOW;
+///    display.fillRect(0, 93, 160, 40, bottom_bg_color);
 
     cruisedAtMilis = millis();  // start timer
   }
@@ -908,23 +603,23 @@ void removeCruise(bool alert) {
   cruising = false;
 
   // update bottom bar
-  bottom_bg_color = DEFAULT_BG_COLOR;
-  if (armed) { bottom_bg_color = ARMED_BG_COLOR; }
-  display.fillRect(0, 93, 160, 40, bottom_bg_color);
+///  bottom_bg_color = DEFAULT_BG_COLOR;
+///  if (armed) { bottom_bg_color = ARMED_BG_COLOR; }
+///  display.fillRect(0, 93, 160, 40, bottom_bg_color);
 
   // update text status
-  display.setCursor(70, 60);
-  display.setTextSize(1);
-  display.setTextColor(DEFAULT_BG_COLOR);
-  display.print(F("CRUISE"));  // overwrite in bg color to remove
-  display.setTextColor(BLACK);
+///  display.setCursor(70, 60);
+///  display.setTextSize(1);
+///  display.setTextColor(DEFAULT_BG_COLOR);
+///  display.print(F("CRUISE"));  // overwrite in bg color to remove
+///  display.setTextColor(BLACK);
 
   if (alert) {
     vibrateNotify();
 
     if (ENABLE_BUZ) {
-      uint16_t notify_melody[] = { 500, 500 };
-      playMelody(notify_melody, 2);
+      uint16_t melody[] = {500, 500};
+      playMelody(melody, 2);
     }
   }
 }
@@ -946,52 +641,41 @@ void disarmSystem() {
   removeCruise(false);
 
   ledBlinkThread.enabled = true;
-  runVibe(disarm_vibes, 3);
+  vibrateSequence(disarm_vibes, 2);
   playMelody(disarm_melody, 3);
 
-  bottom_bg_color = DEFAULT_BG_COLOR;
-  display.fillRect(0, 93, 160, 40, bottom_bg_color);
-  ///updateDisplay();
+///  bottom_bg_color = DEFAULT_BG_COLOR;
+///  display.fillRect(0, 93, 160, 40, bottom_bg_color);
+///  updateDisplay();
 
   // update armed_time
-  refreshDeviceData();
+  refreshDeviceData(&deviceData);
   deviceData.armed_time += round(armedSecs / 60);  // convert to mins
-  writeDeviceData();
+  writeDeviceData(&deviceData);
   ///delay(1000);  // TODO just disable button thread // dont allow immediate rearming
 }
 
-// convert barometer data to altitude in meters
-float getAltitudeM() {
-  if (!bmpPresent) { return 0; }
-  if (!bmp.performReading()) { return 0; }
-  
-  ambientTempC = bmp.temperature;
-  float altitudeM = bmp.readAltitude(deviceData.sea_pressure);
-  return altitudeM;
-}
 
-// get the PPG ready to fly
+// Get the system ready to fly
 bool armSystem() {
-  uint16_t arm_melody[] = { 1760, 1976, 2093 };
-  unsigned int arm_vibes[] = { 70, 33, 0 };
-
   armed = true;
   esc.writeMicroseconds(ESC_DISARMED_PWM);  // initialize the signal to low
 
   ledBlinkThread.enabled = false;
   armedAtMilis = millis();
-  armAltM = getAltitudeM();
+  setGroundAltitude(getAltitude(deviceData));
 
   setLEDs(HIGH);
-  runVibe(arm_vibes, 3);
+  unsigned int arm_vibes[] = {70, 33, 0};
+  vibrateSequence(arm_vibes, 3);
+  uint16_t arm_melody[] = {1760, 1976, 2093};
   playMelody(arm_melody, 3);
 
-  bottom_bg_color = ARMED_BG_COLOR;
-  display.fillRect(0, 93, 160, 40, bottom_bg_color);
+///  bottom_bg_color = ARMED_BG_COLOR;
+///  display.fillRect(0, 93, 160, 40, bottom_bg_color);
 
   return true;
 }
-
 
 // The event handler for the the buttons
 void handleButtonEvent(AceButton* /* btn */, uint8_t eventType, uint8_t /* st */) {
@@ -1010,7 +694,7 @@ void handleButtonEvent(AceButton* /* btn */, uint8_t eventType, uint8_t /* st */
       if (cruising) {
         removeCruise(true);
       } else if (throttleSafe()) {
-        modeSwitch(true);
+        toggleMode();
       } else {
         setCruise();
       }
@@ -1024,9 +708,8 @@ void handleButtonEvent(AceButton* /* btn */, uint8_t eventType, uint8_t /* st */
 }
 
 // inital button setup and config
-void initButtons() {
+void setupButtons() {
   pinMode(BUTTON_TOP, INPUT_PULLUP);
-
   buttonConfig->setEventHandler(handleButtonEvent);
   buttonConfig->setFeature(ButtonConfig::kFeatureDoubleClick);
   buttonConfig->setFeature(ButtonConfig::kFeatureLongPress);
@@ -1036,32 +719,6 @@ void initButtons() {
   buttonConfig->setDoubleClickDelay(600);
 }
 
-void displayMeta() {
-  display.setFont(&FreeSansBold12pt7b);
-  display.setTextColor(BLACK);
-  display.setCursor(25, 30);
-  display.println("OpenPPG");
-  display.setFont();
-  display.setTextSize(2);
-  display.setCursor(60, 60);
-  display.print("v" + String(VERSION_MAJOR) + "." + String(VERSION_MINOR));
-#ifdef RP_PIO
-  display.print("R");
-#endif
-  display.setCursor(54, 90);
-  displayTime(deviceData.armed_time);
-}
-
-// inital screen setup and config
-void initDisplay() {
-  display.initR(INITR_BLACKTAB);  // Init ST7735S chip, black tab
-
-  pinMode(TFT_LITE, OUTPUT);
-  resetDisplay();
-  displayMeta();
-  digitalWrite(TFT_LITE, HIGH);  // Backlight on
-  delay(2500);
-}
 
 // read throttle and send to hub
 // read throttle
@@ -1110,143 +767,8 @@ void handleThrottle() {
 
 
 
-// display altitude data on screen
-void displayAlt() {
-  // if no bmp, just display "ERR"
-  if (!bmpPresent) {
-    display.setTextSize(2);
-    display.setCursor (85, 102);
-    display.setTextColor(RED);
-    display.print(F("AL ERR"));
-    return;
-  }
-
-  float altM = 0;
-  // TODO make MSL explicit?
-  if (armAltM > 0 && deviceData.sea_pressure != DEFAULT_SEA_PRESSURE) {  // MSL
-    altM = getAltitudeM();
-  } else {  // AGL
-    altM = getAltitudeM() - armAltM;
-  }
-
-  // convert to ft if not using metric
-  float alt = deviceData.metric_alt ? altM : (round(altM * 3.28084));
-
-  dispValue(alt, lastAltM, 5, 0, 70, 102, 2, BLACK, bottom_bg_color);
-
-  display.print(deviceData.metric_alt ? F("m") : F("ft"));
-  lastAltM = alt;
-}
 
 
-/********
- *
- * Display logic
- *
- *******/
-bool screen_wiped = false;
-
-void displayMode() {
-  display.setCursor(30, 60);
-  display.setTextSize(1);
-  if (deviceData.performance_mode == 0) {
-    display.setTextColor(BLUE);
-    display.print("CHILL");
-  } else {
-    display.setTextColor(RED);
-    display.print("SPORT");
-  }
-}
-
-// display first page (voltage and current)
-void displayPage0() {
-  float avgVoltage = getBatteryVoltSmoothed();
-
-  dispValue(avgVoltage, prevVolts, 5, 1, 84, 42, 2, BLACK, DEFAULT_BG_COLOR);
-  display.print("V");
-
-  dispValue(telemetryData.amps, prevAmps, 3, 0, 108, 71, 2, BLACK, DEFAULT_BG_COLOR);
-  display.print("A");
-
-  float kWatts = watts / 1000.0;
-  kWatts = constrain(kWatts, 0, 50);
-
-  dispValue(kWatts, prevKilowatts, 4, 1, 10, 42, 2, BLACK, DEFAULT_BG_COLOR);
-  display.print("kW");
-
-  float kwh = wattsHoursUsed / 1000;
-  dispValue(kwh, prevKwh, 4, 1, 10, 71, 2, BLACK, DEFAULT_BG_COLOR);
-  display.print("kWh");
-
-  displayMode();
-}
-
-// show data on screen and handle different pages
-void updateDisplay() {
-  if (!screen_wiped) {
-    display.fillScreen(WHITE);
-    screen_wiped = true;
-  }
-  //Serial.print("v: ");
-  //Serial.println(volts);
-
-  displayPage0();
-  //dispValue(kWatts, prevKilowatts, 4, 1, 10, /*42*/55, 2, BLACK, DEFAULT_BG_COLOR);
-  //display.print("kW");
-
-  display.setTextColor(BLACK);
-  float avgVoltage = getBatteryVoltSmoothed();
-  batteryPercent = getBatteryPercent(avgVoltage);  // multi-point line
-  // change battery color based on charge
-  int batt_width = map((int)batteryPercent, 0, 100, 0, 108);
-  display.fillRect(0, 0, batt_width, 36, batt2color(batteryPercent));
-
-  if (avgVoltage < BATT_MIN_V) {
-    if (batteryFlag) {
-      batteryFlag = false;
-      display.fillRect(0, 0, 108, 36, DEFAULT_BG_COLOR);
-    }
-    display.setCursor(12, 3);
-    display.setTextSize(2);
-    display.setTextColor(RED);
-    display.println("BATTERY");
-
-    if ( avgVoltage < 10 ) {
-      display.print(" ERROR");
-    } else {
-      display.print(" DEAD");
-    }
-  } else {
-    batteryFlag = true;
-    display.fillRect(map(batteryPercent, 0,100, 0,108), 0, map(batteryPercent, 0,100, 108,0), 36, DEFAULT_BG_COLOR);
-  }
-  // cross out battery box if battery is dead
-  if (batteryPercent <= 5) {
-    display.drawLine(0, 1, 106, 36, RED);
-    display.drawLine(0, 0, 108, 36, RED);
-    display.drawLine(1, 0, 110, 36, RED);
-  }
-  dispValue(batteryPercent, prevBatteryPercent, 3, 0, 108, 10, 2, BLACK, DEFAULT_BG_COLOR);
-  display.print("%");
-
-  // battery shape end
-  //display.fillRect(102, 0, 6, 9, BLACK);
-  //display.fillRect(102, 27, 6, 10, BLACK);
-
-  display.fillRect(0, 36, 160, 1, BLACK);
-  display.fillRect(108, 0, 1, 36, BLACK);
-  display.fillRect(0, 92, 160, 1, BLACK);
-
-  displayAlt();
-
-  //dispValue(ambientTempF, prevAmbTempF, 3, 0, 10, 100, 2, BLACK, DEFAULT_BG_COLOR);
-  //display.print("F");
-
-  handleFlightTime();
-  displayTime(throttleSecs, 8, 102, bottom_bg_color);
-
-  //dispPowerCycles(104,100,2);
-}
 
 // The setup function runs once when you press reset or power the board.
 void setup() {
@@ -1261,19 +783,19 @@ void setup() {
   usb_web.setLineStateCallback(line_state_callback);
 #endif
 
-  pinMode(LED_SW, OUTPUT);   // set up the internal LED2 pin
+  pinMode(LED_SW, OUTPUT);      // Set up the LED
+  pinMode(BUZZER_PIN, OUTPUT);  // Set up the buzzer
 
   analogReadResolution(12);     // M0 family chip provides 12bit resolution
   pot.setAnalogResolution(4096);
-  initButtons();
 
-  ledBlinkThread.onRun(blinkLED);
+  ledBlinkThread.onRun(ledBlinkThreadCallback);
   ledBlinkThread.setInterval(500);
 
-  displayThread.onRun(updateDisplay);
+  displayThread.onRun(displayThreadCallback);
   displayThread.setInterval(250);
 
-  buttonThread.onRun(checkButtons);
+  buttonThread.onRun(buttonThreadCallback);
   buttonThread.setInterval(5);
 
   throttleThread.onRun(handleThrottle);
@@ -1282,43 +804,31 @@ void setup() {
   telemetryThread.onRun(handleTelemetry);
   telemetryThread.setInterval(50);
 
-  counterThread.onRun(trackPower);
+  counterThread.onRun(counterThreadCallback);
   counterThread.setInterval(250);
 
-#ifdef M0_PIO
-  Watchdog.enable(5000);
-  eep.begin(eep.twiClock100kHz);
-#elif RP_PIO
-  watchdog_enable(5000, 1);
-  EEPROM.begin(512);
-#endif
+  setupButtons();
+  setupDeviceData();
+  setupWatchdog();
 
-  refreshDeviceData();
+  refreshDeviceData(&deviceData);
 
   esc.attach(ESC_PIN);
   esc.writeMicroseconds(ESC_DISARMED_PWM);
 
-  initBuzz();
-  bmpPresent = initBmp();
-  getAltitudeM();  // throw away first value
-  vibePresent = initVibe();
+  setupAltimeter(deviceData);
+  setupVibrate();
 
-#ifdef M0_PIO
-  Watchdog.reset();
-#endif
-  initDisplay();
-  if (button_top.isPressedRaw()) {
-    modeSwitch(false);
-  }
+  resetWatchdog();  // Necessary? -- might be if the setupDisplay sleep is long enough to fire the watchdog!
+  setupDisplay(deviceData);
+
+  // If the button is held down at startup, toggle mode.
+  if (button.isPressedRaw()) toggleMode();
 }
 
 // Main loop - everything runs in threads
 void loop() {
-#ifdef M0_PIO
-  Watchdog.reset();
-#elif RP_PIO
-  watchdog_update();
-#endif
+  resetWatchdog();
 
 #ifdef USE_TINYUSB
   if (!armed && usb_web.available()) parse_usb_serial();
@@ -1335,10 +845,9 @@ void setup1() {}
 void loop1() {
   if (rp2040.fifo.available() > 0) {
     STR_NOTE note;
-    uint32_t noteData = rp2040.fifo.pop();  
-    memcpy((uint32_t*)&note, &noteData, sizeof(note));
-    tone(BUZZER_PIN, note.freq);
-    delay(note.duration);
+    note.data = rp2040.fifo.pop();  
+    tone(BUZZER_PIN, note.f.freq);
+    delay(note.f.duration);
     noTone(BUZZER_PIN);
   }
 }

@@ -1,6 +1,6 @@
 // Copyright 2021 <Zach Whitehead>
-#ifndef INCLUDE_SP140_SHARED_CONFIG_H_
-#define INCLUDE_SP140_SHARED_CONFIG_H_
+#ifndef SP140_SHARED_CONFIG_H_
+#define SP140_SHARED_CONFIG_H_
 
 #define VERSION_MAJOR         5
 #define VERSION_MINOR         8
@@ -46,4 +46,10 @@
 #define ENABLE_BUZ            true    // enable buzzer
 #define ENABLE_VIB_LOW_BAT    false   // vibrate if armed and battery voltage sags below min volts. Gets pilot's attention.
 
-#endif  // INCLUDE_SP140_SHARED_CONFIG_H_
+#ifdef M0_PIO
+  #include "sp140/config-m0.h"     // device config
+#else
+  #include "sp140/config-rp2040.h" // device config
+#endif
+
+#endif  // SP140_SHARED_CONFIG_H_

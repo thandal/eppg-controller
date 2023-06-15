@@ -1,8 +1,6 @@
 // Copyright 2021 <Zach Whitehead>
-#ifndef INCLUDE_SP140_M0_CONFIG_H_
-#define INCLUDE_SP140_M0_CONFIG_H_
-
-#include "shared-config.h"
+#ifndef SP140_M0_CONFIG_H_
+#define SP140_M0_CONFIG_H_
 
 // Arduino Pins
 #define BUTTON_TOP    6   // arm/disarm button_top
@@ -24,4 +22,4 @@
 #define ESC_PIN       12
 #define ENABLE_VIB    true    // enable vibration
 
-#endif  // INCLUDE_SP140_M0_CONFIG_H_
+#endif  // SP140_M0_CONFIG_H_

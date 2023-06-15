@@ -1,6 +1,6 @@
 // Copyright 2020 <Zach Whitehead>
-#ifndef INC_SP140_STRUCTS_H_
-#define INC_SP140_STRUCTS_H_
+#ifndef SP140_STRUCTS_H_
+#define SP140_STRUCTS_H_
 
 #include <stdint.h>
 
@@ -77,14 +77,15 @@ typedef struct  {
   int CSUM_LO;
 } telem_t;
 
-// Tone struct (passed between cores)
-typedef struct {
-  uint16_t freq;
-  uint16_t duration;
+// Tone struct (passed between rp2040 cores)
+typedef union {
+  struct fields {
+    uint16_t freq;
+    uint16_t duration;
+  } f;
+  uint32_t data; // All packed up in a uint32.
 } STR_NOTE;
+
 #pragma pack(pop)
 
-static STR_ESC_TELEMETRY_140 telemetryData;
-static telem_t raw_telemdata;
-
-#endif  // INC_SP140_STRUCTS_H_
+#endif  // SP140_STRUCTS_H_
