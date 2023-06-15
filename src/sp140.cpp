@@ -7,9 +7,9 @@
 #include "sp140/display.h"
 #include "sp140/vibrate.h"
 #include "sp140/watchdog.h"
+#include "sp140/web_usb.h"
 
 #include <AceButton.h>           // button clicks
-#include <ArduinoJson.h>
 #include <CircularBuffer.h>      // smooth out readings
 #include <ResponsiveAnalogRead.h>  // smoothing for throttle
 #include <Servo.h>               // to control ESCs
@@ -17,14 +17,6 @@
 #include <Thread.h>   // run tasks at different intervals
 #include <Wire.h>
 
-#ifdef USE_TINYUSB
-  #include "Adafruit_TinyUSB.h"
-#endif
-
-// Hardware-specific libraries
-#ifdef RP_PIO
-  #include "pico/unique_id.h"
-#endif
 
 byte escData[ESC_DATA_SIZE];
 byte escDataV2[ESC_DATA_V2_SIZE];
@@ -75,10 +67,6 @@ static telem_t raw_telemdata;
 
 
 // USB WebUSB object
-#ifdef USE_TINYUSB
-Adafruit_USBD_WebUSB usb_web;
-WEBUSB_URL_DEF(landingPage, 1 /*https*/, "config.openppg.com");
-#endif
 
 ResponsiveAnalogRead pot(THROTTLE_PIN, false);
 AceButton button(BUTTON_TOP);
@@ -105,11 +93,6 @@ unsigned int armedSecs = 0;
 
 /// Utilities
 
-#ifdef M0_PIO
-  #define DBL_TAP_PTR ((volatile uint32_t *)(HMCRAMC0_ADDR + HMCRAMC0_SIZE - 4))
-  #define DBL_TAP_MAGIC 0xf01669ef  // Randomly selected, adjusted to have first and last bit set
-  #define DBL_TAP_MAGIC_QUICK_BOOT 0xf02669ef
-#endif
 
 // Compute average of the ring buffer for voltage readings
 float getBatteryVoltSmoothed() {
@@ -186,137 +169,6 @@ void printDeviceData() {
   Serial.println(deviceData.armed_time);
   Serial.print("crc ");
   Serial.println(deviceData.crc);
-}
-
-#ifdef M0_PIO
-// get chip serial number (for SAMD21)
-String chipId() {
-  volatile uint32_t val1, val2, val3, val4;
-  volatile uint32_t *ptr1 = (volatile uint32_t *)0x0080A00C;
-  val1 = *ptr1;
-  volatile uint32_t *ptr = (volatile uint32_t *)0x0080A040;
-  val2 = *ptr;
-  ptr++;
-  val3 = *ptr;
-  ptr++;
-  val4 = *ptr;
-
-  char id_buf[33];
-  sprintf(id_buf, "%8x%8x%8x%8x", val1, val2, val3, val4);
-  return String(id_buf);
-}
-#elif RP_PIO
-String chipId() {
-  int len = 2 * PICO_UNIQUE_BOARD_ID_SIZE_BYTES + 1;
-  uint8_t buff[len] = "";
-  pico_get_unique_board_id_string((char *)buff, len);
-  return String((char *)buff);
-}
-#endif // M0_PIO/RP_PIO
-
-#ifdef M0_PIO
-// reboot/reset controller
-void(* resetFunc) (void) = 0;  // declare reset function @ address 0
-
-// sets the magic pointer to trigger a reboot to the bootloader for updating
-void rebootBootloader() {
-  *DBL_TAP_PTR = DBL_TAP_MAGIC;
-
-  resetFunc();
-}
-
-#elif RP_PIO
-
-// reboot/reset controller
-void rebootBootloader() {
-#ifdef USE_TINYUSB
-  TinyUSB_Port_EnterDFU();
-#endif
-}
-#endif
-
-/// Extra-Data
-
-
-
-// ** Logic for WebUSB **
-void send_usb_serial() {
-#ifdef USE_TINYUSB
-#ifdef M0_PIO
-  const size_t capacity = JSON_OBJECT_SIZE(11) + 90;
-  DynamicJsonDocument doc(capacity);
-
-  doc["major_v"] = VERSION_MAJOR;
-  doc["minor_v"] = VERSION_MINOR;
-  doc["arch"] = "SAMD21";
-  doc["screen_rot"] = deviceData.screen_rotation;
-  doc["armed_time"] = deviceData.armed_time;
-  doc["metric_temp"] = deviceData.metric_temp;
-  doc["metric_alt"] = deviceData.metric_alt;
-  doc["performance_mode"] = deviceData.performance_mode;
-  doc["sea_pressure"] = deviceData.sea_pressure;
-  doc["device_id"] = chipId();
-
-  char output[256];
-  serializeJson(doc, output);
-  usb_web.println(output);
-#elif RP_PIO
-  StaticJsonDocument<256> doc; // <- a little more than 256 bytes in the stack
-
-  doc["mj_v"].set(VERSION_MAJOR);
-  doc["mi_v"].set(VERSION_MINOR);
-  doc["arch"].set("RP2040");
-  doc["scr_rt"].set(deviceData.screen_rotation);
-  doc["ar_tme"].set(deviceData.armed_time);
-  doc["m_tmp"].set(deviceData.metric_temp);
-  doc["m_alt"].set(deviceData.metric_alt);
-  doc["prf"].set(deviceData.performance_mode);
-  doc["sea_p"].set(deviceData.sea_pressure);
-  //doc["id"].set(chipId()); // webusb bug prevents this extra field from being sent
-
-  char output[256];
-  serializeJson(doc, output, sizeof(output));
-  usb_web.println(output);
-  usb_web.flush();
-  //Serial.println(chipId());
-#endif // M0_PIO/RP_PIO
-#endif // USE_TINYUSB
-}
-
-void line_state_callback(bool connected) {
-  digitalWrite(LED_SW, connected);
-  if (connected) send_usb_serial();
-}
-
-
-// customized for sp140
-void parse_usb_serial() {
-#ifdef USE_TINYUSB
-  const size_t capacity = JSON_OBJECT_SIZE(12) + 90;
-  DynamicJsonDocument doc(capacity);
-  deserializeJson(doc, usb_web);
-
-  if (doc["command"] && doc["command"] == "rbl") {
-///    display.fillScreen(DEFAULT_BG_COLOR);
-///    display.setCursor(0, 0);
-///    display.setTextSize(2);
-///    display.println("BL - UF2");
-    rebootBootloader();
-    return;  // run only the command
-  }
-
-  if (doc["major_v"] < 5) return;
-
-  deviceData.screen_rotation = doc["screen_rot"].as<unsigned int>();  // "3/1"
-  deviceData.sea_pressure = doc["sea_pressure"];  // 1013.25 mbar
-  deviceData.metric_temp = doc["metric_temp"];  // true/false
-  deviceData.metric_alt = doc["metric_alt"];  // true/false
-  deviceData.performance_mode = doc["performance_mode"];  // 0,1
-  deviceData.batt_size = doc["batt_size"];  // 4000
-  writeDeviceData(&deviceData);
-  resetDisplay(deviceData);
-  send_usb_serial();
-#endif
 }
 
 
@@ -765,9 +617,10 @@ void handleThrottle() {
   esc.writeMicroseconds(throttlePWM);  // using val as the signal to esc
 }
 
-
-
-
+void webUsbLineStateCallback(bool connected) {
+  digitalWrite(LED_SW, connected);
+  if (connected) sendWebUsbSerial(deviceData);
+}
 
 
 // The setup function runs once when you press reset or power the board.
@@ -777,11 +630,7 @@ void setup() {
   SerialESC.begin(ESC_BAUD_RATE);
   SerialESC.setTimeout(ESC_TIMEOUT);
 
-#ifdef USE_TINYUSB
-  usb_web.begin();
-  usb_web.setLandingPage(&landingPage);
-  usb_web.setLineStateCallback(line_state_callback);
-#endif
+  setupWebUsbSerial(webUsbLineStateCallback);
 
   pinMode(LED_SW, OUTPUT);      // Set up the LED
   pinMode(BUZZER_PIN, OUTPUT);  // Set up the buzzer
@@ -830,9 +679,11 @@ void setup() {
 void loop() {
   resetWatchdog();
 
-#ifdef USE_TINYUSB
-  if (!armed && usb_web.available()) parse_usb_serial();
-#endif
+  if (!armed && parseWebUsbSerial(&deviceData)) {
+    writeDeviceData(&deviceData);
+    resetDisplay(deviceData);
+    sendWebUsbSerial(deviceData);
+  }
 
   threads.run();
 }
