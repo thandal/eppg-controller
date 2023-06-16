@@ -21,9 +21,6 @@
 
 using namespace ace_button;
 
-
-static STR_DEVICE_DATA_140_V1 deviceData;
-
 AceButton button(BUTTON_TOP);
 ResponsiveAnalogRead pot(THROTTLE_PIN, false);
 CircularBuffer<int, 8> potBuffer;
@@ -42,6 +39,7 @@ StaticThreadController<6> threads(&ledBlinkThread, &displayThread, &throttleThre
 bool armed = false;
 bool cruising = false;
 unsigned long armedStartMillis = 0;
+static STR_DEVICE_DATA_140_V1 deviceData;
 
 // Utilities
 
@@ -122,12 +120,16 @@ void handleButtonEvent(AceButton* /* btn */, uint8_t eventType, uint8_t /* st */
     break;
   case AceButton::kEventLongPressed:
     if (armed) {
-      if (!cruising && throttleActive()) {
-        cruising = true;
-        vibrateNotify();
-        buzzerSequence(900, 900);
-      } else {
-        toggleMode();
+      if (cruising) {
+        // ?
+      } else {  // not cruising
+        if (throttleActive()) {
+          cruising = true;
+          vibrateNotify();
+          buzzerSequence(900, 900);
+        } else {
+          toggleMode();
+        }
       }
     } else {
       // show stats screen?
@@ -241,6 +243,7 @@ void setup() {
   setupAltimeter();
   setupVibrate();
   setupWebUsbSerial(webUsbLineStateCallback);
+  setupDisplay(deviceData);
   setupWatchdog();
 
   ledBlinkThread.onRun(ledBlinkThreadCallback);
@@ -260,9 +263,6 @@ void setup() {
 
   webUsbThread.onRun(webUsbThreadCallback);
   webUsbThread.setInterval(50);
-
-  resetWatchdog();  // Necessary? -- might be if the setupDisplay sleep is long enough to fire the watchdog!
-  setupDisplay(deviceData);
 
   // If the button is held down at startup, toggle mode.
   if (button.isPressedRaw()) toggleMode();
