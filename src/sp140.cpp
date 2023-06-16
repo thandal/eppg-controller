@@ -111,12 +111,12 @@ void handleButtonEvent(AceButton* /* btn */, uint8_t eventType, uint8_t /* st */
   const bool doubleClick = eventType == AceButton::kEventDoubleClicked; 
   const bool longPress = eventType == AceButton::kEventLongPressed; 
   if (doubleClick && armed) {
-      disarmSystem();
-      return;
+    disarmSystem();
+    return;
   }
   if (doubleClick && !armed && !throttleActive()) {
-      armSystem();
-      return;
+    armSystem();
+    return;
   }
   if (longPress && armed && !cruising && throttleActive()) {
     cruising = true;
