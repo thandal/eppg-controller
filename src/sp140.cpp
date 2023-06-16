@@ -3,6 +3,7 @@
 #include "sp140/utilities.h"
 
 #include "sp140/altimeter.h"
+#include "sp140/buzzer.h"
 #include "sp140/device_data.h"
 #include "sp140/display.h"
 #include "sp140/esc_telemetry.h"
@@ -34,10 +35,10 @@ Thread ledBlinkThread = Thread();
 Thread displayThread = Thread();
 Thread throttleThread = Thread();
 Thread buttonThread = Thread();
-Thread escThread = Thread();
+Thread escTelemetryThread = Thread();
 Thread counterThread = Thread();
 StaticThreadController<6> threads(&ledBlinkThread, &displayThread, &throttleThread,
-                                  &buttonThread, &escThread, &counterThread);
+                                  &buttonThread, &escTelemetryThread, &counterThread);
 
 CircularBuffer<int, 8> potBuffer;
 bool cruising = false;
@@ -52,40 +53,9 @@ unsigned int armedSecs = 0;
 /// Utilities
 
 
-#ifdef RP_PIO
-// non-blocking tone function that uses second core
-void playNote(uint16_t freq, uint16_t duration) {
-    // fifo uses 32 bit messages, so package up the freq and duration
-    STR_NOTE note;
-    note.f.freq = freq;
-    note.f.duration = duration;
-    rp2040.fifo.push_nb(note.data);  // send note to second core via fifo queue
-}
-#else
-// blocking tone function that delays for notes
-void playNote(uint16_t note, uint16_t duration) {
-  // quarter note = 1000 / 4, eigth note = 1000/8, etc.
-  tone(BUZZER_PIN, note);
-  delay(duration);  // to distinguish the notes, delay between them
-  noTone(BUZZER_PIN);
-}
-#endif
-
-bool playMelody(uint16_t melody[], int siz) {
-  if (!ENABLE_BUZ) return false;
-  for (int thisNote = 0; thisNote < siz; thisNote++) {
-    // quarter note = 1000 / 4, eigth note = 1000/8, etc.
-    int noteDuration = 125;
-    playNote(melody[thisNote], noteDuration);
-  }
-  return true;
-}
-
 void handleArmFail() {
-  uint16_t melody[] = {820, 640};
-  playMelody(melody, 2);
+  buzzerSequence(820, 640);
 }
-
 
 void escTelemetryThreadCallback() {
   updateEscTelemetry();
@@ -154,10 +124,7 @@ void displayThreadCallback() {
 // Returns true if the throttle/pot is below the safe threshold
 bool throttleSafe() {
   pot.update();
-  if (pot.getValue() < POT_SAFE_LEVEL) {
-    return true;
-  }
-  return false;
+  return pot.getValue() < POT_SAFE_LEVEL;
 }
 
 unsigned long cruiseStartSecs = 0;
@@ -168,15 +135,15 @@ void setCruise() {
     cruisedPotVal = pot.getValue();  // save current throttle val
     cruising = true;
     vibrateNotify();
+    buzzerSequence(900, 900);
 
+///  // displayUpdate should handle the cruise state!
 ///    // update display to show cruise
 ///    display.setCursor(70, 60);
 ///    display.setTextSize(1);
 ///    display.setTextColor(RED);
 ///    display.print(F("CRUISE"));
 
-    uint16_t melody[] = {900, 900};
-    playMelody(melody, 2);
 
 ///    bottom_bg_color = YELLOW;
 ///    display.fillRect(0, 93, 160, 40, bottom_bg_color);
@@ -188,6 +155,7 @@ void setCruise() {
 void removeCruise(bool alert) {
   cruising = false;
 
+///  // displayUpdate should handle the cruise state!
   // update bottom bar
 ///  bottom_bg_color = DEFAULT_BG_COLOR;
 ///  if (armed) { bottom_bg_color = ARMED_BG_COLOR; }
@@ -202,11 +170,7 @@ void removeCruise(bool alert) {
 
   if (alert) {
     vibrateNotify();
-
-    if (ENABLE_BUZ) {
-      uint16_t melody[] = {500, 500};
-      playMelody(melody, 2);
-    }
+    buzzerSequence(500, 500);
   }
 }
 
@@ -220,16 +184,16 @@ void disarmSystem() {
   potBuffer.clear();
   prevPotLvl = 0;
 
-  u_int16_t disarm_melody[] = { 2093, 1976, 880 };
-  unsigned int disarm_vibes[] = { 100, 0 };
-
   armed = false;
   removeCruise(false);
 
   ledBlinkThread.enabled = true;
-  vibrateSequence(disarm_vibes, 2);
-  playMelody(disarm_melody, 3);
 
+  unsigned int disarm_vibes[] = { 100, 0 };
+  vibrateSequence(disarm_vibes, 2);
+  buzzerSequence(2093, 1976, 880);
+
+///  // displayUpdate should handle the armed state!
 ///  bottom_bg_color = DEFAULT_BG_COLOR;
 ///  display.fillRect(0, 93, 160, 40, bottom_bg_color);
 ///  updateDisplay();
@@ -245,18 +209,17 @@ void disarmSystem() {
 // Get the system ready to fly
 bool armSystem() {
   armed = true;
+  armedAtMilis = millis();
+
   esc.writeMicroseconds(ESC_DISARMED_PWM);  // initialize the signal to low
 
   ledBlinkThread.enabled = false;
-  armedAtMilis = millis();
-  setGroundAltitude(getAltitude(deviceData));
 
   setLEDs(HIGH);
-  unsigned int arm_vibes[] = {70, 33, 0};
-  vibrateSequence(arm_vibes, 3);
-  uint16_t arm_melody[] = {1760, 1976, 2093};
-  playMelody(arm_melody, 3);
+  vibrateSequence(70, 33);
+  buzzerSequence(1760, 1976, 2093);
 
+///  // displayUpdate should handle the armed state!
 ///  bottom_bg_color = ARMED_BG_COLOR;
 ///  display.fillRect(0, 93, 160, 40, bottom_bg_color);
 
@@ -271,8 +234,7 @@ void toggleMode() {
     deviceData.performance_mode = 0;
   }
   writeDeviceData(&deviceData);
-  uint16_t melody[] = {900, 1976};
-  playMelody(melody, 2);
+  buzzerSequence(900, 1976);
 }
 
 // The event handler for the the buttons
@@ -283,6 +245,7 @@ void handleButtonEvent(AceButton* /* btn */, uint8_t eventType, uint8_t /* st */
       disarmSystem();
     } else if (throttleSafe()) {
       armSystem();
+      setGroundAltitude(getAltitude(deviceData));  // Assuming we arm on the ground
     } else {
       handleArmFail();
     }
@@ -318,10 +281,12 @@ void setupButtons() {
 }
 
 
-// read throttle and send to hub
-// read throttle
-void handleThrottle() {
-  if (!armed) return;  // safe
+// Read throttle and send to esc
+void throttleThreadCallback() {
+  if (!armed) {
+    esc.writeMicroseconds(ESC_DISARMED_PWM);
+    return;
+  }
 
   armedSecs = (millis() - armedAtMilis) / 1000;  // update time while armed
 
@@ -373,12 +338,25 @@ void setup() {
   Serial.begin(115200);
 
   pinMode(LED_SW, OUTPUT);      // Set up the LED
-  pinMode(BUZZER_PIN, OUTPUT);  // Set up the buzzer
 
-  analogReadResolution(12);     // M0 family chip provides 12bit resolution
+  // Set up the throttle
+  analogReadResolution(12);     // M0 family chip provides 12bit resolution. TODO: necessary given the next line?
   pot.setAnalogResolution(4096);
 
+  // Set up the esc control
+  esc.attach(ESC_PIN);
+  esc.writeMicroseconds(ESC_DISARMED_PWM);
+
+  setupBuzzer();
+  setupButtons();
+  setupEscTelemetry();
+  setupDeviceData();
+  refreshDeviceData(&deviceData);
+  setupAltimeter(deviceData);
+  setupVibrate();
+
   setupWebUsbSerial(webUsbLineStateCallback);
+  setupWatchdog();
 
   ledBlinkThread.onRun(ledBlinkThreadCallback);
   ledBlinkThread.setInterval(500);
@@ -389,27 +367,14 @@ void setup() {
   buttonThread.onRun(buttonThreadCallback);
   buttonThread.setInterval(5);
 
-  throttleThread.onRun(handleThrottle);
+  throttleThread.onRun(throttleThreadCallback);
   throttleThread.setInterval(22);
 
-  escThread.onRun(escTelemetryThreadCallback);
-  escThread.setInterval(50);
+  escTelemetryThread.onRun(escTelemetryThreadCallback);
+  escTelemetryThread.setInterval(50);
 
   counterThread.onRun(counterThreadCallback);
   counterThread.setInterval(250);
-
-  setupButtons();
-  setupEscTelemetry();
-  setupDeviceData();
-  setupWatchdog();
-
-  refreshDeviceData(&deviceData);
-
-  esc.attach(ESC_PIN);
-  esc.writeMicroseconds(ESC_DISARMED_PWM);
-
-  setupAltimeter(deviceData);
-  setupVibrate();
 
   resetWatchdog();  // Necessary? -- might be if the setupDisplay sleep is long enough to fire the watchdog!
   setupDisplay(deviceData);

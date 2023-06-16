@@ -17,6 +17,16 @@ void vibrateSequence(unsigned int sequence[], int len) {
   vibe.go();
 }
 
+void vibrateSequence(uint8_t vibe0, uint8_t vibe1, uint8_t vibe2) {
+  if (!vibePresent) return;
+  int i = 0;
+  vibe.setWaveform(i, vibe0);
+  if (vibe1 != 0) vibe.setWaveform(++i, vibe1);
+  if (vibe2 != 0) vibe.setWaveform(++i, vibe2);
+  vibe.setWaveform(++i, 0);
+  vibe.go();
+}
+
 void vibrateNotify() {
   unsigned int vibes[] = {15, 0};
   vibrateSequence(vibes, 2);
