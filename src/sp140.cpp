@@ -34,8 +34,9 @@ Thread displayThread = Thread();
 Thread throttleThread = Thread();
 Thread buttonThread = Thread();
 Thread escTelemetryThread = Thread();
+Thread webUsbThread = Thread();
 StaticThreadController<6> threads(&ledBlinkThread, &displayThread, &throttleThread,
-                                  &buttonThread, &escTelemetryThread);
+                                  &buttonThread, &escTelemetryThread, &webUsbThread);
 
 
 bool armed = false;
@@ -211,6 +212,13 @@ void webUsbLineStateCallback(bool connected) {
   if (connected) sendWebUsbSerial(deviceData);
 }
 
+void webUsbThreadCallback() {
+  if (!armed && parseWebUsbSerial(&deviceData)) {
+    writeDeviceData(&deviceData);
+    resetDisplay(deviceData);
+    sendWebUsbSerial(deviceData);
+  }
+}
 
 // The setup function runs once when you press reset or power the board.
 void setup() {
@@ -250,6 +258,9 @@ void setup() {
   escTelemetryThread.onRun(escTelemetryThreadCallback);
   escTelemetryThread.setInterval(50);
 
+  webUsbThread.onRun(webUsbThreadCallback);
+  webUsbThread.setInterval(50);
+
   resetWatchdog();  // Necessary? -- might be if the setupDisplay sleep is long enough to fire the watchdog!
   setupDisplay(deviceData);
 
@@ -261,11 +272,6 @@ void setup() {
 void loop() {
   resetWatchdog();
   threads.run();
-  if (!armed && parseWebUsbSerial(&deviceData)) {
-    writeDeviceData(&deviceData);
-    resetDisplay(deviceData);
-    sendWebUsbSerial(deviceData);
-  }
 }
 
 #ifdef RP_PIO
