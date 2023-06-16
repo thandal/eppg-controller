@@ -108,35 +108,25 @@ void toggleMode() {
 
 // The event handler for the the buttons
 void handleButtonEvent(AceButton* /* btn */, uint8_t eventType, uint8_t /* st */) {
-  switch (eventType) {
-  case AceButton::kEventDoubleClicked:
-    if (armed) {
+  const bool doubleClick = eventType == AceButton::kEventDoubleClicked; 
+  const bool longPress = eventType == AceButton::kEventLongPressed; 
+  if (doubleClick && armed) {
       disarmSystem();
-    } else if (throttleActive()) {
-      buzzerSequence(820, 640); // Arm failed: Do not arm if the throttle is active.
-    } else {
+      return;
+  }
+  if (doubleClick && !armed && !throttleActive()) {
       armSystem();
-    }
-    break;
-  case AceButton::kEventLongPressed:
-    if (armed) {
-      if (cruising) {
-        // ?
-      } else {  // not cruising
-        if (throttleActive()) {
-          cruising = true;
-          vibrateNotify();
-          buzzerSequence(900, 900);
-        } else {
-          toggleMode();
-        }
-      }
-    } else {
-      // show stats screen?
-    }
-    break;
-  case AceButton::kEventLongReleased:
-    break;
+      return;
+  }
+  if (longPress && armed && !cruising && throttleActive()) {
+    cruising = true;
+    vibrateNotify();
+    buzzerSequence(900, 900);
+    return;
+  }
+  if (longPress && armed && !cruising && !throttleActive()) {
+    toggleMode();
+    return;
   }
 }
 
@@ -150,32 +140,6 @@ void setupButton() {
   buttonConfig->setFeature(ButtonConfig::kFeatureSuppressAfterLongPress);
   buttonConfig->setLongPressDelay(2500);
   buttonConfig->setDoubleClickDelay(600);
-}
-
-
-// Thread callbacks
-
-void escTelemetryThreadCallback() {
-  updateEscTelemetry();
-}
-
-void buttonThreadCallback() {
-  button.check();
-}
-
-
-void ledBlinkThreadCallback() {
-  setLEDs(!digitalRead(LED_SW));
-}
-
-void displayThreadCallback() {
-  // Assuming we arm on the ground
-  const float altitude = getAltitude(deviceData);  
-  if (!armed) setGroundAltitude(altitude);
-  unsigned int armedSeconds = (millis() - armedStartMillis) / 1000;
-  updateDisplay(
-    deviceData, getEscTelemetry(), altitude,
-    armed, cruising, armedSeconds);
 }
 
 
@@ -207,6 +171,32 @@ void throttleThreadCallback() {
   const int maxPWM = (deviceData.performance_mode == 0) ? 1850 : ESC_MAX_PWM;
   const int throttlePWM = map(avgPot, 0, 4095, ESC_MIN_PWM, maxPWM);
   escControl.writeMicroseconds(throttlePWM);
+}
+
+//
+// Thread callbacks
+//
+
+void escTelemetryThreadCallback() {
+  updateEscTelemetry();
+}
+
+void buttonThreadCallback() {
+  button.check();
+}
+
+void ledBlinkThreadCallback() {
+  setLEDs(!digitalRead(LED_SW));
+}
+
+void displayThreadCallback() {
+  // Assuming we arm on the ground
+  const float altitude = getAltitude(deviceData);  
+  if (!armed) setGroundAltitude(altitude);
+  unsigned int armedSeconds = (millis() - armedStartMillis) / 1000;
+  updateDisplay(
+    deviceData, getEscTelemetry(), altitude,
+    armed, cruising, armedSeconds);
 }
 
 void webUsbLineStateCallback(bool connected) {
@@ -268,7 +258,7 @@ void setup() {
   if (button.isPressedRaw()) toggleMode();
 }
 
-// Main loop - everything runs in threads
+// Main loop
 void loop() {
   resetWatchdog();
   threads.run();
@@ -283,9 +273,7 @@ void loop1() {
   if (rp2040.fifo.available() > 0) {
     STR_NOTE note;
     note.data = rp2040.fifo.pop();  
-    tone(BUZZER_PIN, note.f.freq);
-    delay(note.f.duration);
-    noTone(BUZZER_PIN);
+    buzzerNote(note.f.freq, note.f.duration);
   }
 }
 #endif
