@@ -35,13 +35,14 @@ Thread webUsbThread = Thread();
 StaticThreadController<6> threads(&ledBlinkThread, &displayThread, &throttleThread,
                                   &buttonThread, &escTelemetryThread, &webUsbThread);
 
-
 bool armed = false;
 bool cruising = false;
-unsigned long armedStartMillis = 0;
+unsigned int armedStartMillis = 0;
 static STR_DEVICE_DATA_140_V1 deviceData;
 
-// Utilities
+//
+// Misc utilities
+//
 
 int getAvgPot() {
   int avgPot = 0;
@@ -61,40 +62,6 @@ void setLEDs(byte state) {
   digitalWrite(LED_SW, state);
 }
 
-// disarm, remove cruise, alert, save updated stats
-void disarmSystem() {
-  armed = false;
-  cruising = false;
-  const unsigned int armedMillis = millis() - armedStartMillis;
-  escControl.writeMicroseconds(ESC_DISARMED_PWM);
-
-  ledBlinkThread.enabled = true;
-  vibrateSequence(100);
-  buzzerSequence(2093, 1976, 880);
-
-  // Update armed_minutes
-  refreshDeviceData(&deviceData);
-  deviceData.armed_seconds += round(armedMillis / 1000.0);
-  writeDeviceData(&deviceData);
-}
-
-// Get the system ready to fly
-void armSystem() {
-  unsigned int currentMillis = millis();
-  if (currentMillis - armedStartMillis < 1000) {  // Don't allow immediate rearming
-    return;
-  }
-  armedStartMillis = currentMillis;
-
-  armed = true;
-  escControl.writeMicroseconds(ESC_DISARMED_PWM);
-
-  ledBlinkThread.enabled = false;
-  setLEDs(HIGH);
-  vibrateSequence(70, 33);
-  buzzerSequence(1760, 1976, 2093);
-}
-
 // Toggle the mode: 0=CHILL, 1=SPORT
 void toggleMode() {
   if (deviceData.performance_mode == 0) {
@@ -106,16 +73,46 @@ void toggleMode() {
   buzzerSequence(900, 1976);
 }
 
-// The event handler for the the buttons
+// Event handler for button presses
 void handleButtonEvent(AceButton* /* btn */, uint8_t eventType, uint8_t /* st */) {
   const bool doubleClick = eventType == AceButton::kEventDoubleClicked; 
   const bool longPress = eventType == AceButton::kEventLongPressed; 
+
+
   if (doubleClick && armed) {
-    disarmSystem();
+    // DISARM
+    armed = false;
+    cruising = false;
+
+    // Stop immediately, since notifications may take a while
+    escControl.writeMicroseconds(ESC_DISARMED_PWM);
+
+    ledBlinkThread.enabled = true;
+    vibrateSequence(100);
+    buzzerSequence(2093, 1976, 880);
+
+    // Store the new total armed_minutes
+    refreshDeviceData(&deviceData);
+    const unsigned int armedMillis = millis() - armedStartMillis;
+    deviceData.armed_seconds += round(armedMillis / 1000.0);
+    writeDeviceData(&deviceData);
     return;
   }
   if (doubleClick && !armed && !throttleActive()) {
-    armSystem();
+    // ARM
+    // Don't allow immediate rearming
+    const unsigned int currentMillis = millis();
+    if (currentMillis - armedStartMillis < 1000) {  
+      return;
+    }
+    armedStartMillis = currentMillis;
+
+    armed = true;
+
+    ledBlinkThread.enabled = false;
+    setLEDs(HIGH);
+    vibrateSequence(70, 33);
+    buzzerSequence(1760, 1976, 2093);
     return;
   }
   if (longPress && armed && !cruising && throttleActive()) {
@@ -142,10 +139,12 @@ void setupButton() {
   buttonConfig->setDoubleClickDelay(600);
 }
 
+//
+// Thread callbacks
+//
 
-// Read throttle and send to esc
 void throttleThreadCallback() {
-  // We want to always call pot.update() at a regular cadence.
+  // We want to consistently call pot.update().
   // This should be the only place it is called!
   pot.update(); 
 
@@ -172,10 +171,6 @@ void throttleThreadCallback() {
   const int throttlePWM = map(avgPot, 0, 4095, ESC_MIN_PWM, maxPWM);
   escControl.writeMicroseconds(throttlePWM);
 }
-
-//
-// Thread callbacks
-//
 
 void escTelemetryThreadCallback() {
   updateEscTelemetry();
@@ -211,6 +206,10 @@ void webUsbThreadCallback() {
     sendWebUsbSerial(deviceData);
   }
 }
+
+//
+// Arduino setup/main functions
+//
 
 // The setup function runs once when you press reset or power the board.
 void setup() {
