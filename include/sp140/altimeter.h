@@ -4,7 +4,7 @@
 #include "sp140/structs.h"
 
 // Set up the barometer
-void setupAltimeter(const STR_DEVICE_DATA_140_V1& deviceData);
+void setupAltimeter();
 
 // Set the ground altitude for computing Above Ground Level (AGL) altitude.
 void setGroundAltitude(float altitude);

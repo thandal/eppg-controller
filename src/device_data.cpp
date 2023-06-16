@@ -56,8 +56,8 @@ void setupDeviceData() {
 //  Serial.println(deviceData.version_major);
 //  Serial.print("version minor ");
 //  Serial.println(deviceData.version_minor);
-//  Serial.print("armed_time ");
-//  Serial.println(deviceData.armed_time);
+//  Serial.print("armed_seconds ");
+//  Serial.println(deviceData.armed_seconds);
 //  Serial.print("crc ");
 //  Serial.println(deviceData.crc);
 //}
@@ -89,7 +89,7 @@ void writeDeviceData(STR_DEVICE_DATA_140_V1* deviceData) {
 void resetDeviceData(STR_DEVICE_DATA_140_V1* deviceData) {
   deviceData->version_major = VERSION_MAJOR;
   deviceData->version_minor = VERSION_MINOR;
-  deviceData->armed_time = 0;
+  deviceData->armed_seconds = 0;
   deviceData->screen_rotation = 3;
   deviceData->sea_pressure = DEFAULT_SEA_PRESSURE;  // 1013.25 mbar
   deviceData->metric_temp = true;

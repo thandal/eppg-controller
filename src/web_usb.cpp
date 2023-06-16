@@ -79,7 +79,7 @@ void sendWebUsbSerial(const STR_DEVICE_DATA_140_V1& deviceData) {
   doc["minor_v"] = VERSION_MINOR;
   doc["arch"] = "SAMD21";
   doc["screen_rot"] = deviceData.screen_rotation;
-  doc["armed_time"] = deviceData.armed_time;
+  doc["armed_time"] = deviceData.armed_seconds;
   doc["metric_temp"] = deviceData.metric_temp;
   doc["metric_alt"] = deviceData.metric_alt;
   doc["performance_mode"] = deviceData.performance_mode;
@@ -96,7 +96,7 @@ void sendWebUsbSerial(const STR_DEVICE_DATA_140_V1& deviceData) {
   doc["mi_v"].set(VERSION_MINOR);
   doc["arch"].set("RP2040");
   doc["scr_rt"].set(deviceData.screen_rotation);
-  doc["ar_tme"].set(deviceData.armed_time);
+  doc["ar_tme"].set(deviceData.armed_seconds);
   doc["m_tmp"].set(deviceData.metric_temp);
   doc["m_alt"].set(deviceData.metric_alt);
   doc["prf"].set(deviceData.performance_mode);

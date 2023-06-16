@@ -146,9 +146,10 @@ void displayMeta(const STR_DEVICE_DATA_140_V1& deviceData) {
   display.print("R");
 #endif
   display.setCursor(54, 90);
-  const int minutes = deviceData.armed_time / 60;
-  const int seconds = deviceData.armed_time % 60;
-  display.printf("%02d:%02d", minutes, seconds);
+  const int hours = deviceData.armed_seconds / 3600;
+  const int minutes = (deviceData.armed_seconds / 60) % 60;
+  const int seconds = deviceData.armed_seconds % 60;
+  display.printf("%02d:%02d:%02d", hours, minutes, seconds);
 }
 
 // inital screen setup and config
@@ -164,7 +165,8 @@ void setupDisplay(const STR_DEVICE_DATA_140_V1& deviceData) {
 
 void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
                    const STR_ESC_TELEMETRY_140& escTelemetry,
-                   float altitude, unsigned int throttleSecs) {
+                   float altitude, bool armed, bool cruising,
+                   unsigned int sessionSeconds) {
   dispValue(escTelemetry.volts, _prevVolts, 5, 1, 84, 42, 2, BLACK, DEFAULT_BG_COLOR);
   display.print("V");
 
@@ -244,5 +246,41 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
 
   display.setCursor(8, 102);
   display.setTextSize(2);
-  display.printf("%02d:%02d", throttleSecs / 60, throttleSecs % 60);
+  const int hours = sessionSeconds / 3600;
+  const int minutes = (sessionSeconds / 60) % 60;
+  const int seconds = sessionSeconds % 60;
+  display.printf("%02d:%02d:%02d", hours, minutes, seconds);
 }
+
+///uint16_t bottom_bg_color = DEFAULT_BG_COLOR;
+
+// arm
+///  bottom_bg_color = ARMED_BG_COLOR;
+///  display.fillRect(0, 93, 160, 40, bottom_bg_color);
+
+// disarm
+///  bottom_bg_color = DEFAULT_BG_COLOR;
+///  display.fillRect(0, 93, 160, 40, bottom_bg_color);
+///  updateDisplay();
+
+// activateCruise 
+/// displayUpdate should handle the cruise state!
+///  // update display to show cruise
+///  display.setCursor(70, 60);
+///  display.setTextSize(1);
+///  display.setTextColor(RED);
+///  display.print(F("CRUISE"));
+///  bottom_bg_color = YELLOW;
+///  display.fillRect(0, 93, 160, 40, bottom_bg_color);
+
+/// deactivateCruise
+///  // update bottom bar
+///  bottom_bg_color = DEFAULT_BG_COLOR;
+///  if (armed) { bottom_bg_color = ARMED_BG_COLOR; }
+///  display.fillRect(0, 93, 160, 40, bottom_bg_color);
+///  // update text status
+///  display.setCursor(70, 60);
+///  display.setTextSize(1);
+///  display.setTextColor(DEFAULT_BG_COLOR);
+///  display.print(F("CRUISE"));  // overwrite in bg color to remove
+///  display.setTextColor(BLACK);

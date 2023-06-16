@@ -21,18 +21,18 @@ typedef struct {
 
 // Device configuration data
 typedef struct {
-  uint8_t version_major;  // 5
-  uint8_t version_minor;  // 1
-  uint16_t armed_time;    // minutes (think Hobbs)
-  uint8_t screen_rotation;  // 1,2,3,4 (90 deg)
-  float sea_pressure;  // 1013.25 mbar
-  bool metric_temp;    // true
-  bool metric_alt;     // false
-  uint8_t performance_mode;  // 0,1,2
-  uint16_t batt_size;     // 4000 (4kw) or 2000 (2kw)
-  uint8_t btn_mode;     // for future use
-  uint8_t unused;     // for future use
-  uint16_t crc;        // error check
+  uint8_t version_major;     // VERSION_MAJOR from config.h
+  uint8_t version_minor;     // VERSION_MINOR from config.h
+  uint16_t armed_seconds;    // seconds
+  uint8_t screen_rotation;   // 1,2,3,4 (90 deg)
+  float sea_pressure;        // 1013.25 mbar
+  bool metric_temp;          // Display temperature in C/F
+  bool metric_alt;           // Display altitude in m/ft
+  uint8_t performance_mode;  // 0 = CHILL, 1 = SPORT
+  uint16_t batt_size;        // 4000 (4kw) or 2000 (2kw)
+  uint8_t btn_mode;          // for future use
+  uint8_t unused;            // for future use
+  uint16_t crc;              // crc
 } STR_DEVICE_DATA_140_V1;
 
 // Note struct (passed between rp2040 cores)
