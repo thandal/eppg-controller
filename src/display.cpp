@@ -7,19 +7,6 @@
 
 Adafruit_ST7735 display = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
 
-// "prev" values are used with dispValue() for tidy screen drawing.
-// TODO: Is this complexity necessary???
-float _prevMinutes = 0;
-float _prevSeconds = 0;
-float _prevVolts = 0;
-float _prevAmps = 0;
-float _prevKwh = 0;
-float _prevKilowatts = 0;
-float _prevAlt = 0;
-float _prevBatteryPercent = 0;
-
-bool _batteryRedrawOnFaultFlag = true;
-
 // Map voltage to battery percentage, based on a
 // simple set of data points from load testing.
 float getBatteryPercent(float voltage) {
@@ -46,6 +33,13 @@ float getBatteryPercent(float voltage) {
     battPercent = mapd(voltage, 60.96, 78, 0, 10);
   }
   return constrain(battPercent, 0, 100);
+}
+
+void updateStatusBar(bool armed, bool cruising) {
+  unsigned int color = DEFAULT_BG_COLOR;
+  if (cruising) color = YELLOW;
+  else if (armed) color = ARMED_BG_COLOR;
+  display.fillRect(0, 93, 160, 40, color);
 }
 
 //**************************************************************************************//
@@ -119,10 +113,6 @@ uint16_t batt2color(int percentage) {
   return RED;
 }
 
-// TODO (bug) rolls over at 99mins
-void displayTime(int val, int x, int y, uint16_t bg_color) {
-}
-
 // Clears screen and resets properties
 void resetDisplay(const STR_DEVICE_DATA_140_V1& deviceData) {
   display.fillScreen(DEFAULT_BG_COLOR);
@@ -166,6 +156,15 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
                    const STR_ESC_TELEMETRY_140& escTelemetry,
                    float altitude, bool armed, bool cruising,
                    unsigned int sessionSeconds) {
+  // "_prev" values are used with dispValue() for tidy screen drawing.
+  // TODO: Is the dispValue complexity necessary???
+  static float _prevVolts = 0;
+  static float _prevAmps = 0;
+  static float _prevKwh = 0;
+  static float _prevKilowatts = 0;
+  static float _prevAlt = 0;
+  static float _prevBatteryPercent = 0;
+
   dispValue(escTelemetry.volts, _prevVolts, 5, 1, 84, 42, 2, BLACK, DEFAULT_BG_COLOR);
   display.print("V");
 
@@ -198,6 +197,7 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
   int batteryPercentWidth = map((int)batteryPercent, 0, 100, 0, 108);
   display.fillRect(0, 0, batteryPercentWidth, 36, batt2color(batteryPercent));
 
+  static bool _batteryRedrawOnFaultFlag = true;
   if (escTelemetry.volts < BATT_MIN_V) {
     if (_batteryRedrawOnFaultFlag) {
       _batteryRedrawOnFaultFlag = false;
@@ -249,37 +249,29 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
   const int minutes = (sessionSeconds / 60) % 60;
   const int seconds = sessionSeconds % 60;
   display.printf("%02d:%02d:%02d", hours, minutes, seconds);
+
+  static bool _prevArmed = false;
+  if ((armed && !_prevArmed) || (!armed && _prevArmed)) {
+    updateStatusBar(armed, cruising);
+  }
+  _prevArmed = armed;
+
+  static bool _prevCruising = false;
+  if (cruising && !_prevCruising) {
+    updateStatusBar(armed, cruising);
+    // Update text status
+    display.setCursor(70, 60);
+    display.setTextSize(1);
+    display.setTextColor(RED);
+    display.print(F("CRUISE"));
+  }
+  if (!cruising && _prevCruising) {
+    updateStatusBar(armed, cruising);
+    // Update text status
+    display.setCursor(70, 60);
+    display.setTextSize(1);
+    display.setTextColor(DEFAULT_BG_COLOR);
+    display.print(F("CRUISE"));  // overwrite in bg color to remove
+    display.setTextColor(BLACK);
+  }
 }
-
-///uint16_t bottom_bg_color = DEFAULT_BG_COLOR;
-
-// arm
-///  bottom_bg_color = ARMED_BG_COLOR;
-///  display.fillRect(0, 93, 160, 40, bottom_bg_color);
-
-// disarm
-///  bottom_bg_color = DEFAULT_BG_COLOR;
-///  display.fillRect(0, 93, 160, 40, bottom_bg_color);
-///  updateDisplay();
-
-// activateCruise 
-/// displayUpdate should handle the cruise state!
-///  // update display to show cruise
-///  display.setCursor(70, 60);
-///  display.setTextSize(1);
-///  display.setTextColor(RED);
-///  display.print(F("CRUISE"));
-///  bottom_bg_color = YELLOW;
-///  display.fillRect(0, 93, 160, 40, bottom_bg_color);
-
-/// deactivateCruise
-///  // update bottom bar
-///  bottom_bg_color = DEFAULT_BG_COLOR;
-///  if (armed) { bottom_bg_color = ARMED_BG_COLOR; }
-///  display.fillRect(0, 93, 160, 40, bottom_bg_color);
-///  // update text status
-///  display.setCursor(70, 60);
-///  display.setTextSize(1);
-///  display.setTextColor(DEFAULT_BG_COLOR);
-///  display.print(F("CRUISE"));  // overwrite in bg color to remove
-///  display.setTextColor(BLACK);
