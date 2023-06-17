@@ -17,13 +17,12 @@
 #include <Servo.h>                 // to control ESC
 #include <StaticThreadController.h>
 #include <Thread.h>
-#include <Wire.h>
 
 using namespace ace_button;
 
 AceButton button(BUTTON_TOP);
-ResponsiveAnalogRead pot(THROTTLE_PIN, false);
-CircularBuffer<int, 8> potBuffer;
+ResponsiveAnalogRead throttlePot(THROTTLE_PIN, false);
+CircularBuffer<int, 8> throttlePotBuffer;
 Servo escControl;
 
 Thread ledBlinkThread = Thread();
@@ -46,31 +45,20 @@ static STR_DEVICE_DATA_140_V1 deviceData;
 
 int getAvgPot() {
   int avgPot = 0;
-  for (decltype(potBuffer)::index_t i = 0; i < potBuffer.size(); i++) {
-    avgPot += potBuffer[i];
+  for (decltype(throttlePotBuffer)::index_t i = 0; i < throttlePotBuffer.size(); i++) {
+    avgPot += throttlePotBuffer[i];
   }
-  if (potBuffer.size() > 1) avgPot /= potBuffer.size();
+  if (throttlePotBuffer.size() > 1) avgPot /= throttlePotBuffer.size();
   return avgPot;
 }
 
-// Returns true if the throttle/pot is above the safe threshold
+// Returns true if the throttlePot is above the safe threshold
 bool throttleActive() {
-  return pot.getValue() > POT_SAFE_LEVEL;
+  return throttlePot.getValue() > POT_SAFE_LEVEL;
 }
 
 void setLEDs(byte state) {
   digitalWrite(LED_SW, state);
-}
-
-// Toggle the mode: 0=CHILL, 1=SPORT
-void toggleMode() {
-  if (deviceData.performance_mode == 0) {
-    deviceData.performance_mode = 1;
-  } else {
-    deviceData.performance_mode = 0;
-  }
-  writeDeviceData(&deviceData);
-  buzzerSequence(900, 1976);
 }
 
 // Event handler for button presses
@@ -78,14 +66,10 @@ void handleButtonEvent(AceButton* /* btn */, uint8_t eventType, uint8_t /* st */
   const bool doubleClick = eventType == AceButton::kEventDoubleClicked; 
   const bool longPress = eventType == AceButton::kEventLongPressed; 
 
-
   if (doubleClick && armed) {
     // DISARM
     armed = false;
     cruising = false;
-
-    // Stop immediately, since notifications may take a while
-    escControl.writeMicroseconds(ESC_DISARMED_PWM);
 
     ledBlinkThread.enabled = true;
     vibrateSequence(100);
@@ -105,9 +89,9 @@ void handleButtonEvent(AceButton* /* btn */, uint8_t eventType, uint8_t /* st */
     if (currentMillis - armedStartMillis < 1000) {  
       return;
     }
-    armedStartMillis = currentMillis;
 
     armed = true;
+    armedStartMillis = currentMillis;
 
     ledBlinkThread.enabled = false;
     setLEDs(HIGH);
@@ -121,8 +105,11 @@ void handleButtonEvent(AceButton* /* btn */, uint8_t eventType, uint8_t /* st */
     buzzerSequence(900, 900);
     return;
   }
-  if (longPress && armed && !cruising && !throttleActive()) {
-    toggleMode();
+  if (longPress && !cruising && !throttleActive()) {
+    // Toggle the mode: 0=CHILL, 1=SPORT
+    deviceData.performance_mode = (deviceData.performance_mode == 0) ? 1 : 0;
+    writeDeviceData(&deviceData);
+    buzzerSequence(900, 1976);
     return;
   }
 }
@@ -144,9 +131,9 @@ void setupButton() {
 //
 
 void throttleThreadCallback() {
-  // We want to consistently call pot.update().
+  // We need to consistently call throttlePot.update().
   // This should be the only place it is called!
-  pot.update(); 
+  throttlePot.update(); 
 
   if (!armed) {
     escControl.writeMicroseconds(ESC_DISARMED_PWM);
@@ -164,7 +151,7 @@ void throttleThreadCallback() {
     }
   } else {
     cruiseStartMillis = 0;
-    potBuffer.push(pot.getValue());
+    throttlePotBuffer.push(throttlePot.getValue());
   }
   const int avgPot = getAvgPot();
   const int maxPWM = (deviceData.performance_mode == 0) ? 1850 : ESC_MAX_PWM;
@@ -217,7 +204,7 @@ void setup() {
 
   // Set up the throttle
   analogReadResolution(12);     // M0 family chip provides 12bit resolution. TODO: necessary given the next line?
-  pot.setAnalogResolution(4096);
+  throttlePot.setAnalogResolution(4096);
 
   // Set up the esc control
   escControl.attach(ESC_PIN);
@@ -233,6 +220,7 @@ void setup() {
   setupVibrate();
   setupWebUsbSerial(webUsbLineStateCallback);
   setupDisplay(deviceData);
+  delay(2000);  // Let the startup screen show for 2 s
   setupWatchdog();
 
   ledBlinkThread.onRun(ledBlinkThreadCallback);
@@ -252,9 +240,6 @@ void setup() {
 
   webUsbThread.onRun(webUsbThreadCallback);
   webUsbThread.setInterval(50);
-
-  // If the button is held down at startup, toggle mode.
-  if (button.isPressedRaw()) toggleMode();
 }
 
 // Main loop

@@ -133,7 +133,7 @@ void resetDisplay(const STR_DEVICE_DATA_140_V1& deviceData) {
   display.setRotation(deviceData.screen_rotation);  // 1=right hand, 3=left hand
 }
 
-void displayMeta(const STR_DEVICE_DATA_140_V1& deviceData) {
+void displayBoot(const STR_DEVICE_DATA_140_V1& deviceData) {
   display.setFont(&FreeSansBold12pt7b);
   display.setTextColor(BLACK);
   display.setCursor(25, 30);
@@ -157,9 +157,8 @@ void setupDisplay(const STR_DEVICE_DATA_140_V1& deviceData) {
   display.initR(INITR_BLACKTAB);  // Init ST7735S chip, black tab
   pinMode(TFT_LITE, OUTPUT);
   resetDisplay(deviceData);
-  displayMeta(deviceData);
+  displayBoot(deviceData);
   digitalWrite(TFT_LITE, HIGH);  // Backlight on
-  delay(2500);
   display.fillScreen(WHITE);
 }
 
