@@ -2,8 +2,8 @@
 #ifndef SP140_SHARED_CONFIG_H_
 #define SP140_SHARED_CONFIG_H_
 
-#define VERSION_MAJOR         5
-#define VERSION_MINOR         9
+#define VERSION_MAJOR         6 
+#define VERSION_MINOR         0
 
 // Batt setting now configurable by user. Read from device data
 #define BATT_MIN_V            60.0  // 24 * 2.5V per cell
