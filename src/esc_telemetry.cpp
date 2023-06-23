@@ -64,11 +64,9 @@ void parseEscSerialData(byte buffer[]) {
 
   STR_ESC_TELEMETRY_140_V2 &telem = *(STR_ESC_TELEMETRY_140_V2*)buffer;
   
-  // TODO: what is this?
-  //  if (volts > BATT_MIN_V) {
-  //    volts += 1.0; // calibration
-  //  }
-  voltsBuffer.push(telem.centiVolts / 100);
+  float volts = telem.centiVolts / 100;
+  if (volts > BATT_MIN_V) volts += 1.0; // calibration
+  voltsBuffer.push(volts);
   float avgVolts = 0.0;
   for (decltype(voltsBuffer)::index_t i = 0; i < voltsBuffer.size(); ++i) {
     avgVolts += voltsBuffer[i] / voltsBuffer.size();
