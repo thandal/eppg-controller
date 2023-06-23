@@ -165,9 +165,9 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
   static float _prevBatteryPercent = 0;
 
   // Display region lines
-  display.fillRect(0, 36, 160, 1, BLACK);
-  display.fillRect(101, 0, 1, 36, BLACK);
-  display.fillRect(0, 92, 160, 1, BLACK);
+  display.drawFastHLine(0, 36, 160, BLACK);
+  display.drawFastVLine(101, 0, 36, BLACK);
+  display.drawFastHLine(0, 92, 160, BLACK);
 
   // Display battery level
   display.setTextColor(BLACK);
