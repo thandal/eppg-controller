@@ -111,7 +111,7 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
   //   Display battery percent
   canvas.setCursor(108, 10);
   canvas.setTextColor(BLACK);
-  canvas.printf("%3d%%", batteryPercent);
+  canvas.printf("%3d%%", (int)batteryPercent);
 
   const float kWatts = constrain(escTelemetry.watts / 1000.0, 0, 50);
   const float volts = escTelemetry.volts;

@@ -57,24 +57,24 @@ int CheckFlectcher16(byte byteBuffer[]) {
     int c1 = 0;
 
     // Calculate checksum intermediate bytesUInt16
-    // Check only first 18 bytes, skip crc bytes
-    for (int i = 0; i < ESC_DATA_V2_SIZE - 2; i++) { 
+    // Check only first 18 bytes, skip crc bytes and stop bytes
+    for (int i = 0; i < ESC_DATA_V2_SIZE - 4; i++) { 
         c0 = (int)(c0 + ((int)byteBuffer[i])) % 255;
         c1 = (int)(c1 + c0) % 255;
     }
     // Assemble the 16-bit checksum value
-    const int fCCRC16 = ( c1 << 8 ) | c0;
+    const int fCCRC16 = (c1 << 8) | c0;
     return (int)fCCRC16;
 }
 
 void parseEscSerialData(byte buffer[]) {
   if (buffer[20] != 255 || buffer[21] != 255) {
     Serial.println("no stop byte");
-    return; //Stop byte of 65535 not recieved
+    return; // Stop byte of 65535 not recieved
   }
 
-  // Check the fletcher checksum
-  const int checkFletch = CheckFlectcher16(buffer);
+//  // Check the fletcher checksum
+//  const int checkFletch = CheckFlectcher16(buffer);
   STR_ESC_TELEMETRY_140_V2 escTelemetryV2;
 
   escTelemetryV2.CSUM_HI = buffer[19];
@@ -83,11 +83,11 @@ void parseEscSerialData(byte buffer[]) {
   // TODO alert if no new data in 3 seconds
   int checksum = (int)(((escTelemetryV2.CSUM_HI << 8) + escTelemetryV2.CSUM_LO));
 
-  // Checksums do not match
-  if (checkFletch != checksum) {
-    Serial.println("checksum error");
-    return;
-  }
+//  // Checksums do not match
+//  if (checkFletch != checksum) {
+//    Serial.println("checksum error");
+//    return;
+//  }
 
   // Voltage
   escTelemetryV2.V_HI = buffer[1];
@@ -185,15 +185,14 @@ void parseEscSerialData(byte buffer[]) {
   escTelemetry.statusFlag = escTelemetryV2.statusFlag;
 }
 
-//// For debugging
-//void printRawEscData(byte buffer[]) {
-//  Serial.print(F("DATA: "));
-//  for (int i = 0; i < ESC_DATA_V2_SIZE; i++) {
-//    Serial.print(buffer[i], HEX);
-//    Serial.print(F(" "));
-//  }
-//  Serial.println();
-//}
+// For debugging
+void printRawEscData(byte buffer[]) {
+  Serial.print(F("ESC DATA: "));
+  for (int i = 0; i < ESC_DATA_V2_SIZE; i++) {
+    Serial.printf("%02X ", buffer[i]);
+  }
+  Serial.println();
+}
 
 const STR_ESC_TELEMETRY_140& getEscTelemetry() {
   return escTelemetry;
@@ -204,9 +203,10 @@ void updateEscTelemetry() {
   while (SerialESC.available() > 0) SerialESC.read();
 
   byte escDataV2[ESC_DATA_V2_SIZE];
-  SerialESC.readBytes(escDataV2, ESC_DATA_V2_SIZE);
-  //printRawEscData(escDataV2);
-  parseEscSerialData(escDataV2);
+  if (SerialESC.readBytes(escDataV2, ESC_DATA_V2_SIZE)) {
+    //printRawEscData(escDataV2);
+    parseEscSerialData(escDataV2);
+  }
 }
 
 void setupEscTelemetry() {
