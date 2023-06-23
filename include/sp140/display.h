@@ -7,7 +7,7 @@
 void setupDisplay(const STR_DEVICE_DATA_140_V1& deviceData);
 
 // Clear screen and reset properties
-void resetDisplay(const STR_DEVICE_DATA_140_V1& deviceData);
+void resetRotation(unsigned int orientation);
 
 // Show data on screen
 void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,

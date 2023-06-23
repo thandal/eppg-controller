@@ -1,11 +1,15 @@
 #include "sp140/config.h"
 #include "sp140/structs.h"
-#include "sp140/utilities.h"
 
 #include <Adafruit_ST7735.h>
 #include <Fonts/FreeSansBold12pt7b.h>
 
 Adafruit_ST7735 display = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
+GFXcanvas16 canvas(160, 128);
+
+double mapd(double x, double in_min, double in_max, double out_min, double out_max) {
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
 
 // Map voltage to battery percentage, based on a
 // simple set of data points from load testing.
@@ -35,95 +39,13 @@ float getBatteryPercent(float voltage) {
   return constrain(battPercent, 0, 100);
 }
 
-void updateStatusBar(bool armed, bool cruising) {
-  unsigned int color = DEFAULT_BG_COLOR;
-  if (cruising) color = YELLOW;
-  else if (armed) color = ARMED_BG_COLOR;
-  display.fillRect(0, 93, 160, 40, color);
-}
-
-//**************************************************************************************//
-//  Helper function to print values without flashing numbers due to slow screen refresh.
-//  This function only re-draws the digit that needs to be updated.
-//    BUG:  If textColor is not constant across multiple uses of this function,
-//          weird things happen.
-//**************************************************************************************//
-void dispValue(float value, float &prevVal, int maxDigits, int precision, int x, int y, int textSize, int textColor, int background){
-  int numDigits = 0;
-  char prevDigit[DIGIT_ARRAY_SIZE] = {};
-  char digit[DIGIT_ARRAY_SIZE] = {};
-  String prevValTxt = String(prevVal, precision);
-  String valTxt = String(value, precision);
-  prevValTxt.toCharArray(prevDigit, maxDigits+1);
-  valTxt.toCharArray(digit, maxDigits+1);
-
-  // COUNT THE NUMBER OF DIGITS THAT NEED TO BE PRINTED:
-  for (int i=0; i<maxDigits; i++) {
-    if (digit[i]) {
-      numDigits++;
-    }
-  }
-
-  display.setTextSize(textSize);
-  display.setCursor(x, y);
-
-  // PRINT LEADING SPACES TO RIGHT-ALIGN:
-  display.setTextColor(background);
-  for (int i=0; i<(maxDigits-numDigits); i++) {
-    display.print(static_cast<char>(218));
-  }
-  display.setTextColor(textColor);
-
-  // ERASE ONLY THE NESSESARY DIGITS:
-  for (int i=0; i<numDigits; i++) {
-    if (digit[i]!=prevDigit[i]) {
-      display.setTextColor(background);
-      display.print(static_cast<char>(218));
-    } else {
-      display.setTextColor(textColor);
-      display.print(digit[i]);
-    }
-  }
-
-  // BACK TO THE BEGINNING:
-  display.setCursor(x, y);
-
-  // ADVANCE THE CURSOR TO THE PROPER LOCATION:
-  display.setTextColor(background);
-  for (int i=0; i<(maxDigits-numDigits); i++) {
-    display.print(static_cast<char>(218));
-  }
-  display.setTextColor(textColor);
-
-  // PRINT THE DIGITS THAT NEED UPDATING
-  for(int i=0; i<numDigits; i++){
-    display.print(digit[i]);
-  }
-
-  prevVal = value;
-}
-
-// Map battery percentage to a display color
-uint16_t batt2color(int percentage) {
-  if (percentage >= 30) {
-    return GREEN;
-  } else if (percentage >= 15) {
-    return YELLOW;
-  }
-  return RED;
-}
-
 // Clears screen and resets properties
-void resetDisplay(const STR_DEVICE_DATA_140_V1& deviceData) {
-  display.fillScreen(DEFAULT_BG_COLOR);
-  display.setTextColor(BLACK);
-  display.setCursor(0, 0);
-  display.setTextSize(1);
-  display.setTextWrap(true);
-  display.setRotation(deviceData.screen_rotation);  // 1=right hand, 3=left hand
+void resetRotation(unsigned int rotation) {
+  display.setRotation(rotation);  // 1=right hand, 3=left hand
 }
 
 void displayBoot(const STR_DEVICE_DATA_140_V1& deviceData) {
+  display.fillScreen(DEFAULT_BG_COLOR);
   display.setFont(&FreeSansBold12pt7b);
   display.setTextColor(BLACK);
   display.setCursor(20, 30);
@@ -135,6 +57,7 @@ void displayBoot(const STR_DEVICE_DATA_140_V1& deviceData) {
 #ifdef RP_PIO
   display.print("R");
 #endif
+  // Total armed time
   display.setCursor(35, 90);
   const int hours = deviceData.armed_seconds / 3600;
   const int minutes = (deviceData.armed_seconds / 60) % 60;
@@ -146,147 +69,123 @@ void displayBoot(const STR_DEVICE_DATA_140_V1& deviceData) {
 void setupDisplay(const STR_DEVICE_DATA_140_V1& deviceData) {
   display.initR(INITR_BLACKTAB);  // Init ST7735S chip, black tab
   pinMode(TFT_LITE, OUTPUT);
-  resetDisplay(deviceData);
-  displayBoot(deviceData);
   digitalWrite(TFT_LITE, HIGH);  // Backlight on
+  resetRotation(deviceData.screen_rotation);
+  displayBoot(deviceData);
 }
 
 void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
                    const STR_ESC_TELEMETRY_140& escTelemetry,
                    float altitude, bool armed, bool cruising,
                    unsigned int sessionSeconds) {
-  // "_prev" values are used with dispValue() for tidy screen drawing.
-  // TODO: Is the dispValue complexity necessary???
-  static float _prevVolts = 0;
-  static float _prevAmps = 0;
-  static float _prevKwh = 0;
-  static float _prevKilowatts = 0;
-  static float _prevAlt = 0;
-  static float _prevBatteryPercent = 0;
+  canvas.fillScreen(DEFAULT_BG_COLOR);
+  canvas.setTextWrap(false);
 
   // Display region lines
-  display.drawFastHLine(0, 36, 160, BLACK);
-  display.drawFastVLine(101, 0, 36, BLACK);
-  display.drawFastHLine(0, 92, 160, BLACK);
+  canvas.drawFastHLine(0, 36, 160, BLACK);
+  canvas.drawFastVLine(100, 0, 36, BLACK);
+  canvas.drawFastHLine(0, 80, 160, BLACK);
+  canvas.drawFastHLine(0, 92, 160, BLACK);
 
-  // Display battery level
-  display.setTextColor(BLACK);
+  // Display battery
+  canvas.setTextColor(BLACK);
+  canvas.setTextSize(2);
 
   // HACK
   //const float batteryPercent = getBatteryPercent(escTelemetry.volts);
-  static int batteryPercent = 0;
-  batteryPercent = (batteryPercent - 90) % 10 + 91;
+  static int batteryPercent = 90;
+  batteryPercent = (batteryPercent + 1) % 101;
 
-  int batteryPercentWidth = map((int)batteryPercent, 0, 100, 0, 100);
-  display.fillRect(0, 0, batteryPercentWidth, 36, batt2color(batteryPercent));
-  display.fillRect(batteryPercentWidth + 1, 0, 100 - batteryPercentWidth, 36, DEFAULT_BG_COLOR);
-
-  static bool _batteryRedrawOnFaultFlag = true;
-  if (escTelemetry.volts < BATT_MIN_V) {
-    if (_batteryRedrawOnFaultFlag) {
-      _batteryRedrawOnFaultFlag = false;
-      display.fillRect(0, 0, 108, 36, DEFAULT_BG_COLOR);
-    }
-    display.setCursor(12, 3);
-    display.setTextSize(2);
-    display.setTextColor(RED);
-    display.println("BATTERY");
-    if (escTelemetry.volts < 10) {
-      display.print(" ERROR");
-    } else {
-      display.print(" DEAD");
-    }
+  // Display battery bar
+  if (batteryPercent > 0) {
+    unsigned int batteryColor = RED;
+    if (batteryPercent >= 30) batteryColor = GREEN;
+    else if (batteryPercent >= 15) batteryColor = YELLOW;
+    int batteryPercentWidth = map((int)batteryPercent, 0, 100, 0, 100);
+    canvas.fillRect(0, 0, batteryPercentWidth, 36, batteryColor);
   } else {
-    _batteryRedrawOnFaultFlag = true;
-  }
-  // cross out battery box if battery is dead
-  if (batteryPercent <= 5) {
-    display.drawLine(0, 1, 106, 36, RED);
-    display.drawLine(0, 0, 108, 36, RED);
-    display.drawLine(1, 0, 110, 36, RED);
-  }
-  dispValue(batteryPercent, _prevBatteryPercent, 3, 0, 108, 10, 2, BLACK, DEFAULT_BG_COLOR);
-  display.print("%");
-
-  const float kWatts = constrain(escTelemetry.watts / 1000.0, 0, 50);
-  dispValue(kWatts, _prevKilowatts, 4, 1, 10, 42, 2, BLACK, DEFAULT_BG_COLOR);
-  display.print("kW");
-
-  dispValue(escTelemetry.volts, _prevVolts, 5, 1, 84, 42, 2, BLACK, DEFAULT_BG_COLOR);
-  display.print("V");
-
-  const float kwh = escTelemetry.wattHours / 1000.0;
-  dispValue(kwh, _prevKwh, 4, 1, 10, 71, 2, BLACK, DEFAULT_BG_COLOR);
-  display.print("kWh");
-
-  dispValue(escTelemetry.amps, _prevAmps, 3, 0, 108, 71, 2, BLACK, DEFAULT_BG_COLOR);
-  display.print("A");
-
-  // Display performance mode
-  display.setTextSize(1);
-  static unsigned int _prevPerformanceMode = 100;
-  if (_prevPerformanceMode != deviceData.performance_mode) {
-    if (deviceData.performance_mode == 0) {
-      display.setTextColor(DEFAULT_BG_COLOR);
-      display.setCursor(30, 60);
-      display.print("SPORT");
-      display.setCursor(30, 60);
-      display.setTextColor(BLUE);
-      display.print("CHILL");
+    canvas.setCursor(12, 3);
+    canvas.setTextColor(RED);
+    canvas.println("BATTERY");
+    if (escTelemetry.volts < 10) {
+      canvas.print(" ERROR");
     } else {
-      display.setTextColor(DEFAULT_BG_COLOR);
-      display.setCursor(30, 60);
-      display.print("CHILL");
-      display.setCursor(30, 60);
-      display.setTextColor(RED);
-      display.print("SPORT");
+      canvas.print(" DEAD");
     }
+  }
+  // Display battery percent
+  canvas.setCursor(108, 10);
+  canvas.setTextColor(BLACK);
+  canvas.printf("%3d%%", batteryPercent);
+
+  //const float kWatts = constrain(escTelemetry.watts / 1000.0, 0, 50);
+  static float kWatts = 0;
+  kWatts += 1.75;
+  if (kWatts > 50) kWatts = 0.0;
+
+  const float volts = kWatts; //escTelemetry.volts;
+  const float kWh = kWatts; //escTelemetry.wattHours / 1000.0;
+  const float amps = kWatts; //escTelemetry.amps;
+
+  canvas.setCursor(1, 42);
+  canvas.printf("%4.1fkW  %4.1fV", kWatts, volts);
+  canvas.setCursor(1, 61);
+  canvas.printf("%4.1fkWh %4.1fA", kWh, amps);
+
+  // Display modes
+  canvas.setCursor(10, 83);
+  canvas.setTextSize(1);
+  if (deviceData.performance_mode == 0) {
+      canvas.setTextColor(BLUE);
+      canvas.print("CHILL");
+  } else {
+    canvas.setTextColor(RED);
+    canvas.print("SPORT");
+  }
+
+  if (armed) {
+    canvas.setCursor(50, 83);
+    canvas.setTextColor(BLACK, ARMED_BG_COLOR);
+    canvas.print("ARMED");
+  } else {
+    canvas.setCursor(50, 83);
+    canvas.setTextColor(BLACK, GREEN);
+    canvas.print("SAFE");
+  }
+
+  if (cruising) {
+    canvas.setCursor(90, 83);
+    canvas.setTextColor(BLACK, YELLOW);
+    canvas.print("CRUISE");
   }
   
-  //updateStatusBar(armed, cruising);
+  // Display statusbar
+  unsigned int statusBarColor = DEFAULT_BG_COLOR;
+  if (cruising) statusBarColor = YELLOW;
+  else if (armed) statusBarColor = ARMED_BG_COLOR;
+  canvas.fillRect(0, 93, 160, 40, statusBarColor);
 
-  // Display current armed time
-  display.setTextColor(BLACK);
-  display.setCursor(8, 102);
-  display.setTextSize(2);
+  // Display armed time for the current session
+  canvas.setTextColor(BLACK);
+  canvas.setTextSize(2);
+  canvas.setCursor(8, 102);
   const int minutes = sessionSeconds / 60;
   const int seconds = sessionSeconds % 60;
-  display.printf("%02d:%02d", minutes, seconds);
+  canvas.printf("%02d:%02d", minutes, seconds);
 
-  // Display altitude
-  display.setTextSize(2);
-  if (altitude == 0.0) {  // If no bmp, just display "ERR"
-    display.setCursor (84, 102);
-    display.setTextColor(RED);
-    display.print(F("AL ERR"));
+  // Altitude
+  canvas.setCursor (84, 102);
+  canvas.setTextSize(2);
+  if (altitude == 0.0) {
+    canvas.setTextColor(RED);
+    canvas.print(F("ALTERR"));
   } else {
     // Display in ft if not using metric
-    const float alt = deviceData.metric_alt ? altitude : (round(altitude * 3.28084));
-    dispValue(alt, _prevAlt, 5, 0, 84, 102, 2, BLACK, DEFAULT_BG_COLOR);
-    display.print(deviceData.metric_alt ? F("m") : F("f"));
+    canvas.setTextColor(BLACK);
+    const float alt = deviceData.metric_alt ? altitude : (altitude * 3.28084);
+    canvas.printf("%5.1f%c", alt, deviceData.metric_alt ? 'm' : 'f');
   }
 
-  static bool _prevArmed = false;
-  if ((armed && !_prevArmed) || (!armed && _prevArmed)) {
-    updateStatusBar(armed, cruising);
-  }
-  _prevArmed = armed;
-
-  static bool _prevCruising = false;
-  if (cruising && !_prevCruising) {
-    updateStatusBar(armed, cruising);
-    // Update text status
-    display.setCursor(70, 60);
-    display.setTextSize(1);
-    display.setTextColor(RED);
-    display.print(F("CRUISE"));
-  }
-  if (!cruising && _prevCruising) {
-    updateStatusBar(armed, cruising);
-    // Update text status
-    display.setCursor(70, 60);
-    display.setTextSize(1);
-    display.setTextColor(DEFAULT_BG_COLOR);
-    display.print(F("CRUISE"));  // overwrite in bg color to remove
-  }
+  // Draw the canvas to the display.
+  display.drawRGBBitmap(0, 0, canvas.getBuffer(), canvas.width(), canvas.height());
 }

@@ -1,6 +1,5 @@
 #include "sp140/config.h"
 #include "sp140/structs.h"
-#include "sp140/utilities.h"
 
 #include "sp140/altimeter.h"
 #include "sp140/buzzer.h"
@@ -193,7 +192,7 @@ void webUsbLineStateCallback(bool connected) {
 void webUsbThreadCallback() {
   if (!armed && parseWebUsbSerial(&deviceData)) {
     writeDeviceData(&deviceData);
-    resetDisplay(deviceData);  // Screen orientation may have changed
+    resetRotation(deviceData.screen_rotation);  // Screen orientation may have changed
     sendWebUsbSerial(deviceData);
   }
 }
@@ -225,7 +224,6 @@ void setup() {
   setupWebUsbSerial(webUsbLineStateCallback);
   setupDisplay(deviceData);
   delay(2000);  // Let the startup screen show for 2 s
-  resetDisplay(deviceData);
   setupWatchdog();
 
   ledBlinkThread.onRun(ledBlinkThreadCallback);
