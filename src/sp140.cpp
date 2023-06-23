@@ -199,7 +199,6 @@ void webUsbThreadCallback() {
 // The setup function runs once when you press reset or power the board.
 void setup() {
   Serial.begin(115200);  // For debug
-  Serial.println("Setup!");
 
   // Set up the throttle
   analogReadResolution(12);     // M0 family chip provides 12bit resolution. TODO: necessary given the next line?
@@ -219,6 +218,7 @@ void setup() {
   setupVibrate();
   setupWebUsbSerial(webUsbLineStateCallback);
   setupDisplay(deviceData);
+
   delay(2000);  // Let the startup screen show for 2 s
   setupWatchdog();
 
@@ -251,13 +251,15 @@ void loop() {
 // Set up the second core. Nothing to do for now.
 void setup1() {}
 
-// Main loop on the second core of the RP2040.
+// Main loop on the second core of the RP2040
+// Play notes using delay, which doesn't block the first core.
 void loop1() {
   if (rp2040.fifo.available() > 0) {
     STR_NOTE note;
     note.data = rp2040.fifo.pop();  
-    Serial.println("note!");
-    buzzerNote(note.f.freq, note.f.duration);
+    tone(BUZZER_PIN, note.f.freq);
+    delay(note.f.duration);
+    noTone(BUZZER_PIN);
   }
 }
 #endif
