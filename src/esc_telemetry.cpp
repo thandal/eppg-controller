@@ -6,10 +6,10 @@
 #include <CircularBuffer.h>        // smooth out readings
 
 #pragma pack(push, 1)
-// v2 ESC serial telemetry struct
+// ESC serial telemetry packet v2: see https://docs.powerdrives.net/products/uhv/uart-telemetry-output 
 typedef struct  {
   // Voltage
-  int16_t centiVolts;
+  int16_t rawVolts;
   // Temperature
   uint16_t rawTemperature;
   // Current
@@ -24,6 +24,12 @@ typedef struct  {
   uint16_t dutyOut;
   // Status Flags
   uint8_t statusFlag;
+  // Reserved
+  uint8_t R1;
+  // Fletcher checksum
+  uint16_t checksum;
+  // Stop bytes
+  uint16_t stopBytes;
 } STR_ESC_TELEMETRY_140_V2;
 #pragma pack(pop)
 
@@ -64,7 +70,7 @@ void parseEscSerialData(byte buffer[]) {
 
   STR_ESC_TELEMETRY_140_V2 &telem = *(STR_ESC_TELEMETRY_140_V2*)buffer;
   
-  float volts = telem.centiVolts / 100;
+  float volts = telem.rawVolts / 100;
   if (volts > BATT_MIN_V) volts += 1.0; // calibration
   voltsBuffer.push(volts);
   float avgVolts = 0.0;
