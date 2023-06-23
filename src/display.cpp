@@ -124,7 +124,7 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
   canvas.printf("%4.1fkWh %4.1fA", kWh, amps);
 
   // Display modes
-  canvas.setCursor(10, 83);
+  canvas.setCursor(8, 83);
   canvas.setTextSize(1);
   if (deviceData.performance_mode == 0) {
       canvas.setTextColor(BLUE);
@@ -134,21 +134,24 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
     canvas.print("SPORT");
   }
 
+  canvas.setCursor(46, 83);
   if (armed) {
-    canvas.setCursor(50, 83);
     canvas.setTextColor(BLACK, ARMED_BG_COLOR);
     canvas.print("ARMED");
   } else {
-    canvas.setCursor(50, 83);
     canvas.setTextColor(BLACK, GREEN);
     canvas.print("SAFE");
   }
 
   if (cruising) {
-    canvas.setCursor(90, 83);
+    canvas.setCursor(84, 83);
     canvas.setTextColor(BLACK, YELLOW);
     canvas.print("CRUISE");
   }
+
+  canvas.setCursor(124, 83);
+  canvas.setTextColor(BLACK);
+  canvas.printf("ESC%2d", escTelemetry.statusFlag);
   
   // Display statusbar
   unsigned int statusBarColor = DEFAULT_BG_COLOR;

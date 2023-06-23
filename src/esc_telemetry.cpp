@@ -181,14 +181,6 @@ void parseEscSerialData(byte buffer[]) {
   // Reserved
   // escTelemetryV2.R1 = buffer[17];
 
-  /* Status Flags
-  # Bit position in byte indicates flag set, 1 is set, 0 is default
-  # Bit 0: Motor Started, set when motor is running as expected
-  # Bit 1: Motor Saturation Event, set when saturation detected and power is reduced for desync protection
-  # Bit 2: ESC Over temperature event occuring, shut down method as per configuration
-  # Bit 3: ESC Overvoltage event occuring, shut down method as per configuration
-  # Bit 4: ESC Undervoltage event occuring, shut down method as per configuration
-  # Bit 5: Startup error detected, motor stall detected upon trying to start*/
   escTelemetryV2.statusFlag = buffer[16];
   escTelemetry.statusFlag = escTelemetryV2.statusFlag;
 }
