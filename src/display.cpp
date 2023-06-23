@@ -87,16 +87,11 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
   canvas.drawFastHLine(0, 80, 160, BLACK);
   canvas.drawFastHLine(0, 92, 160, BLACK);
 
-  // Display battery
+  // Display battery level and status
   canvas.setTextColor(BLACK);
   canvas.setTextSize(2);
-
-  // HACK
-  //const float batteryPercent = getBatteryPercent(escTelemetry.volts);
-  static int batteryPercent = 90;
-  batteryPercent = (batteryPercent + 1) % 101;
-
-  // Display battery bar
+  const float batteryPercent = getBatteryPercent(escTelemetry.volts);
+  //   Display battery bar
   if (batteryPercent > 0) {
     unsigned int batteryColor = RED;
     if (batteryPercent >= 30) batteryColor = GREEN;
@@ -113,19 +108,15 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
       canvas.print(" DEAD");
     }
   }
-  // Display battery percent
+  //   Display battery percent
   canvas.setCursor(108, 10);
   canvas.setTextColor(BLACK);
   canvas.printf("%3d%%", batteryPercent);
 
-  //const float kWatts = constrain(escTelemetry.watts / 1000.0, 0, 50);
-  static float kWatts = 0;
-  kWatts += 1.75;
-  if (kWatts > 50) kWatts = 0.0;
-
-  const float volts = kWatts; //escTelemetry.volts;
-  const float kWh = kWatts; //escTelemetry.wattHours / 1000.0;
-  const float amps = kWatts; //escTelemetry.amps;
+  const float kWatts = constrain(escTelemetry.watts / 1000.0, 0, 50);
+  const float volts = escTelemetry.volts;
+  const float kWh = escTelemetry.wattHours / 1000.0;
+  const float amps = escTelemetry.amps;
 
   canvas.setCursor(1, 42);
   canvas.printf("%4.1fkW  %4.1fV", kWatts, volts);
@@ -173,17 +164,19 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
   const int seconds = sessionSeconds % 60;
   canvas.printf("%02d:%02d", minutes, seconds);
 
-  // Altitude
-  canvas.setCursor (84, 102);
+  // Display altitude
+  canvas.setCursor (72, 102);
   canvas.setTextSize(2);
   if (altitude == 0.0) {
     canvas.setTextColor(RED);
     canvas.print(F("ALTERR"));
   } else {
-    // Display in ft if not using metric
     canvas.setTextColor(BLACK);
-    const float alt = deviceData.metric_alt ? altitude : (altitude * 3.28084);
-    canvas.printf("%5.1f%c", alt, deviceData.metric_alt ? 'm' : 'f');
+    if (deviceData.metric_alt) {
+      canvas.printf("%6.1fm", altitude);
+    } else {
+      canvas.printf("%5dft", (int)round(altitude * 3.28084));
+    }
   }
 
   // Draw the canvas to the display.
