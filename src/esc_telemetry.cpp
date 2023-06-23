@@ -52,13 +52,12 @@ static STR_ESC_TELEMETRY_140 escTelemetry;
 CircularBuffer<float, 50> voltsBuffer;
 unsigned long prevWattHoursMillis = 0;
 
-int CheckFlectcher16(byte byteBuffer[]) {
+int checkFlectcher16(byte byteBuffer[], int len) {
     int c0 = 0;
     int c1 = 0;
 
     // Calculate checksum intermediate bytesUInt16
-    // Check only first 18 bytes, skip crc bytes and stop bytes
-    for (int i = 0; i < ESC_DATA_V2_SIZE - 4; i++) { 
+    for (int i = 0; i < len; i++) { 
         c0 = (int)(c0 + ((int)byteBuffer[i])) % 255;
         c1 = (int)(c1 + c0) % 255;
     }
@@ -73,8 +72,9 @@ void parseEscSerialData(byte buffer[]) {
     return; // Stop byte of 65535 not recieved
   }
 
-//  // Check the fletcher checksum
-//  const int checkFletch = CheckFlectcher16(buffer);
+  // Check the Fletcher checksum
+  // Check only first 18 bytes, skip crc bytes and stop bytes
+  const int checkFletch = checkFlectcher16(buffer, ESC_DATA_V2_SIZE - 4);
   STR_ESC_TELEMETRY_140_V2 escTelemetryV2;
 
   escTelemetryV2.CSUM_HI = buffer[19];
@@ -83,11 +83,11 @@ void parseEscSerialData(byte buffer[]) {
   // TODO alert if no new data in 3 seconds
   int checksum = (int)(((escTelemetryV2.CSUM_HI << 8) + escTelemetryV2.CSUM_LO));
 
-//  // Checksums do not match
-//  if (checkFletch != checksum) {
-//    Serial.println("checksum error");
-//    return;
-//  }
+  // Checksums do not match
+  if (checkFletch != checksum) {
+    Serial.println("checksum error");
+    return;
+  }
 
   // Voltage
   escTelemetryV2.V_HI = buffer[1];
