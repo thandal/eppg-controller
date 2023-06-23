@@ -7,7 +7,7 @@
 void setupAltimeter();
 
 // Set the ground altitude for computing Above Ground Level (AGL) altitude.
-void setGroundAltitude(float altitude);
+void setGroundAltitude(const STR_DEVICE_DATA_140_V1& deviceData);
 
 // Get the altitude (in meters)
 float getAltitude(const STR_DEVICE_DATA_140_V1& deviceData);

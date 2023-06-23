@@ -173,8 +173,8 @@ void ledBlinkThreadCallback() {
 
 void displayThreadCallback() {
   // Assuming we arm on the ground
+  if (!armed) setGroundAltitude(deviceData);
   const float altitude = getAltitude(deviceData);  
-  //if (!armed) setGroundAltitude(altitude);
   updateDisplay(
     deviceData, getEscTelemetry(), altitude, armed, cruising, armedStartMillis);
 }

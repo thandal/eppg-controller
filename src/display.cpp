@@ -171,7 +171,7 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
   // Display altitude
   canvas.setCursor (72, 102);
   canvas.setTextSize(2);
-  if (altitude == 0.0) {
+  if (altitude == __FLT_MIN__) {
     canvas.setTextColor(RED);
     canvas.print(F("ALTERR"));
   } else {
