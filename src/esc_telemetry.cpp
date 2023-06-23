@@ -5,48 +5,27 @@
 #include <Arduino.h>
 #include <CircularBuffer.h>        // smooth out readings
 
+#pragma pack(push, 1)
 // v2 ESC serial telemetry struct
 typedef struct  {
   // Voltage
-  int V_HI;
-  int V_LO;
-
+  int16_t centiVolts;
   // Temperature
-  int T_HI;
-  int T_LO;
-
+  uint16_t rawTemperature;
   // Current
-  int I_HI;
-  int I_LO;
-
+  uint16_t rawAmps;
   // Reserved
-  int R0_HI;
-  int R0_LO;
-
+  uint16_t R0;
   // eRPM
-  int RPM0;
-  int RPM1;
-  int RPM2;
-  int RPM3;
-
+  int32_t rawRpm;
   // Input Duty
-  int DUTYIN_HI;
-  int DUTYIN_LO;
-
+  uint16_t dutyIn;
   // Motor Duty
-  int MOTORDUTY_HI;
-  int MOTORDUTY_LO;
-
-  // Reserved
-  int R1;
-
+  uint16_t dutyOut;
   // Status Flags
-  int statusFlag;
-
-  // checksum
-  int CSUM_HI;
-  int CSUM_LO;
+  uint8_t statusFlag;
 } STR_ESC_TELEMETRY_140_V2;
+#pragma pack(pop)
 
 static STR_ESC_TELEMETRY_140 escTelemetry;
 CircularBuffer<float, 50> voltsBuffer;
@@ -75,13 +54,7 @@ void parseEscSerialData(byte buffer[]) {
   // Check the Fletcher checksum
   // Check only first 18 bytes, skip crc bytes and stop bytes
   const int checkFletch = checkFlectcher16(buffer, ESC_DATA_V2_SIZE - 4);
-  STR_ESC_TELEMETRY_140_V2 escTelemetryV2;
-
-  escTelemetryV2.CSUM_HI = buffer[19];
-  escTelemetryV2.CSUM_LO = buffer[18];
-
-  // TODO alert if no new data in 3 seconds
-  int checksum = (int)(((escTelemetryV2.CSUM_HI << 8) + escTelemetryV2.CSUM_LO));
+  const int16_t checksum = word(buffer[19], buffer[18]);
 
   // Checksums do not match
   if (checkFletch != checksum) {
@@ -89,17 +62,13 @@ void parseEscSerialData(byte buffer[]) {
     return;
   }
 
-  // Voltage
-  escTelemetryV2.V_HI = buffer[1];
-  escTelemetryV2.V_LO = buffer[0];
-
-  float volts = (escTelemetryV2.V_HI << 8 | escTelemetryV2.V_LO) / 100.0;
-  if (volts > BATT_MIN_V) {
-    volts += 1.0; // calibration
-  }
-
-  // Compute average of the ring buffer for voltage readings
-  voltsBuffer.push(volts);
+  STR_ESC_TELEMETRY_140_V2 &telem = *(STR_ESC_TELEMETRY_140_V2*)buffer;
+  
+  // TODO: what is this?
+  //  if (volts > BATT_MIN_V) {
+  //    volts += 1.0; // calibration
+  //  }
+  voltsBuffer.push(telem.centiVolts / 100);
   float avgVolts = 0.0;
   for (decltype(voltsBuffer)::index_t i = 0; i < voltsBuffer.size(); ++i) {
     avgVolts += voltsBuffer[i] / voltsBuffer.size();
@@ -107,41 +76,29 @@ void parseEscSerialData(byte buffer[]) {
   escTelemetry.volts = avgVolts;
 
   // Temperature
-  escTelemetryV2.T_HI = buffer[3];
-  escTelemetryV2.T_LO = buffer[2];
-
-  float rawVal = (float)((escTelemetryV2.T_HI << 8) + escTelemetryV2.T_LO);
-
-  static int SERIESRESISTOR = 10000;
-  static int NOMINAL_RESISTANCE = 10000;
-  static int NOMINAL_TEMPERATURE = 25;
-  static int BCOEFFICIENT = 3455;
-
-  //convert value to resistance
-  float Rntc = (4096 / (float) rawVal) - 1;
+  const int SERIESRESISTOR = 10000;
+  const int NOMINAL_RESISTANCE = 10000;
+  const int NOMINAL_TEMPERATURE = 25;
+  const int BCOEFFICIENT = 3455;
+  // Convert value to resistance
+  float Rntc = (4096 / (float) telem.rawTemperature) - 1;
   Rntc = SERIESRESISTOR / Rntc;
-
-  // Get the temperature
+  // Compute the temperature
   float temperature = Rntc / (float) NOMINAL_RESISTANCE; // (R/Ro)
   temperature = (float) log(temperature); // ln(R/Ro)
   temperature /= BCOEFFICIENT; // 1/B * ln(R/Ro)
-
   temperature += 1.0 / ((float) NOMINAL_TEMPERATURE + 273.15); // + (1/To)
   temperature = 1.0 / temperature; // Invert
   temperature -= 273.15; // convert to Celcius
-
-  // filter bad values
+  // Filter bad values
   if (temperature < 0 || temperature > 200) {
     temperature = 0;
   }
-
   temperature = (float) trunc(temperature * 100) / 100; // 2 decimal places
   escTelemetry.temperatureC = temperature;
 
   // Current
-  const int16_t amps = word(buffer[5], buffer[4]);
-  escTelemetry.amps = amps / 12.5;
-
+  escTelemetry.amps = telem.rawAmps / 12.5;
   escTelemetry.watts = escTelemetry.amps * escTelemetry.volts;
 
   // Update wattHours
@@ -150,39 +107,18 @@ void parseEscSerialData(byte buffer[]) {
   prevWattHoursMillis = currentMillis;
   escTelemetry.wattHours += round(escTelemetry.watts * deltaHours);
 
-  // Reserved
-  escTelemetryV2.R0_HI = buffer[7];
-  escTelemetryV2.R0_LO = buffer[6];
-
-  // eRPM
-  escTelemetryV2.RPM0 = buffer[11];
-  escTelemetryV2.RPM1 = buffer[10];
-  escTelemetryV2.RPM2 = buffer[9];
-  escTelemetryV2.RPM3 = buffer[8];
-
-  const int poleCount = 62;
-  int currentERPM = (int)((escTelemetryV2.RPM0 << 24) + (escTelemetryV2.RPM1 << 16) + (escTelemetryV2.RPM2 << 8) + (escTelemetryV2.RPM3 << 0)); //ERPM output
-  int currentRPM = currentERPM / poleCount;  // Real RPM output
-  escTelemetry.rpm = currentRPM;
+  // RPM
+  const int POLECOUNT = 62;
+  escTelemetry.rpm = telem.rawRpm / POLECOUNT;  // Real RPM output 
 
   // Input Duty
-  escTelemetryV2.DUTYIN_HI = buffer[13];
-  escTelemetryV2.DUTYIN_LO = buffer[12];
-
-  int throttleDuty = (int)(((escTelemetryV2.DUTYIN_HI << 8) + escTelemetryV2.DUTYIN_LO) / 10);
-  escTelemetry.inPWM = (throttleDuty / 10);  // PWM = Duty? Divide by 10?
+  escTelemetry.inPWM = telem.dutyIn / 100;  // PWM = Duty?
 
   // Motor Duty
-  escTelemetryV2.MOTORDUTY_HI = buffer[15];
-  escTelemetryV2.MOTORDUTY_LO = buffer[14];
-  int motorDuty = (int)(((escTelemetryV2.MOTORDUTY_HI << 8) + escTelemetryV2.MOTORDUTY_LO) / 10);
-  escTelemetry.outPWM = (motorDuty / 10);  // PWM = Duty? Divide by 10?
+  escTelemetry.outPWM = telem.dutyOut / 100;  // PWM = Duty?
 
-  // Reserved
-  // escTelemetryV2.R1 = buffer[17];
-
-  escTelemetryV2.statusFlag = buffer[16];
-  escTelemetry.statusFlag = escTelemetryV2.statusFlag;
+  // Status
+  escTelemetry.statusFlag = telem.statusFlag;
 }
 
 // For debugging
@@ -203,6 +139,7 @@ void updateEscTelemetry() {
   while (SerialESC.available() > 0) SerialESC.read();
 
   byte escDataV2[ESC_DATA_V2_SIZE];
+  // TODO alert if no new data in 3 seconds
   if (SerialESC.readBytes(escDataV2, ESC_DATA_V2_SIZE)) {
     //printRawEscData(escDataV2);
     parseEscSerialData(escDataV2);
