@@ -140,7 +140,7 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
     canvas.print("ARMED");
   } else {
     canvas.setTextColor(BLACK, GREEN);
-    canvas.print("SAFE");
+    canvas.print("SAFED");
   }
 
   if (cruising) {
