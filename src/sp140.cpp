@@ -218,7 +218,6 @@ void setup() {
   setupVibrate();
   setupWebUsbSerial(webUsbLineStateCallback);
   setupDisplay(deviceData);
-
   delay(2000);  // Let the startup screen show for 2 s
   setupWatchdog();
 

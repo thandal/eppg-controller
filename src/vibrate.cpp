@@ -6,17 +6,6 @@
 Adafruit_DRV2605 vibe;
 bool vibePresent = false;
 
-void vibrateSequence(unsigned int sequence[], int len) {
-  if (!vibePresent) return;
-  int i = 0;
-  for (; i < len; i++) {
-    vibe.setWaveform(i, sequence[i]);
-  }
-  // Enforce that the sequence ends with 0.
-  vibe.setWaveform(i, 0);
-  vibe.go();
-}
-
 void vibrateSequence(uint8_t vibe0, uint8_t vibe1, uint8_t vibe2) {
   if (!vibePresent) return;
   int i = 0;
@@ -28,8 +17,7 @@ void vibrateSequence(uint8_t vibe0, uint8_t vibe1, uint8_t vibe2) {
 }
 
 void vibrateNotify() {
-  unsigned int vibes[] = {15, 0};
-  vibrateSequence(vibes, 2);
+  vibrateSequence(15);
 }
 
 // Initialize the vibration motor and vibrate
