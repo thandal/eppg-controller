@@ -126,16 +126,16 @@ void resetDisplay(const STR_DEVICE_DATA_140_V1& deviceData) {
 void displayBoot(const STR_DEVICE_DATA_140_V1& deviceData) {
   display.setFont(&FreeSansBold12pt7b);
   display.setTextColor(BLACK);
-  display.setCursor(25, 30);
+  display.setCursor(20, 30);
   display.println("OpenPPG");
   display.setFont();
   display.setTextSize(2);
-  display.setCursor(60, 60);
+  display.setCursor(50, 60);
   display.print("v" + String(VERSION_MAJOR) + "." + String(VERSION_MINOR));
 #ifdef RP_PIO
   display.print("R");
 #endif
-  display.setCursor(54, 90);
+  display.setCursor(35, 90);
   const int hours = deviceData.armed_seconds / 3600;
   const int minutes = (deviceData.armed_seconds / 60) % 60;
   const int seconds = deviceData.armed_seconds % 60;
@@ -149,7 +149,6 @@ void setupDisplay(const STR_DEVICE_DATA_140_V1& deviceData) {
   resetDisplay(deviceData);
   displayBoot(deviceData);
   digitalWrite(TFT_LITE, HIGH);  // Backlight on
-  display.fillScreen(WHITE);
 }
 
 void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
@@ -165,37 +164,22 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
   static float _prevAlt = 0;
   static float _prevBatteryPercent = 0;
 
-  dispValue(escTelemetry.volts, _prevVolts, 5, 1, 84, 42, 2, BLACK, DEFAULT_BG_COLOR);
-  display.print("V");
-
-  dispValue(escTelemetry.amps, _prevAmps, 3, 0, 108, 71, 2, BLACK, DEFAULT_BG_COLOR);
-  display.print("A");
-
-  const float kWatts = constrain(escTelemetry.watts / 1000.0, 0, 50);
-  dispValue(kWatts, _prevKilowatts, 4, 1, 10, 42, 2, BLACK, DEFAULT_BG_COLOR);
-  display.print("kW");
-
-  const float kwh = escTelemetry.wattHours / 1000.0;
-  dispValue(kwh, _prevKwh, 4, 1, 10, 71, 2, BLACK, DEFAULT_BG_COLOR);
-  display.print("kWh");
-
-  // Display mode
-  display.setCursor(30, 60);
-  display.setTextSize(1);
-  if (deviceData.performance_mode == 0) {
-    display.setTextColor(BLUE);
-    display.print("CHILL");
-  } else {
-    display.setTextColor(RED);
-    display.print("SPORT");
-  }
+  // Display region lines
+  display.fillRect(0, 36, 160, 1, BLACK);
+  display.fillRect(101, 0, 1, 36, BLACK);
+  display.fillRect(0, 92, 160, 1, BLACK);
 
   // Display battery level
-  display.setTextColor(BLACK); // remove?
-  const float batteryPercent = getBatteryPercent(escTelemetry.volts);
-  // Change battery color based on charge
-  int batteryPercentWidth = map((int)batteryPercent, 0, 100, 0, 108);
+  display.setTextColor(BLACK);
+
+  // HACK
+  //const float batteryPercent = getBatteryPercent(escTelemetry.volts);
+  static int batteryPercent = 0;
+  batteryPercent = (batteryPercent - 90) % 10 + 91;
+
+  int batteryPercentWidth = map((int)batteryPercent, 0, 100, 0, 100);
   display.fillRect(0, 0, batteryPercentWidth, 36, batt2color(batteryPercent));
+  display.fillRect(batteryPercentWidth + 1, 0, 100 - batteryPercentWidth, 36, DEFAULT_BG_COLOR);
 
   static bool _batteryRedrawOnFaultFlag = true;
   if (escTelemetry.volts < BATT_MIN_V) {
@@ -214,7 +198,6 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
     }
   } else {
     _batteryRedrawOnFaultFlag = true;
-    display.fillRect(batteryPercentWidth, 0, map(batteryPercent, 0, 100, 108, 0), 36, DEFAULT_BG_COLOR);
   }
   // cross out battery box if battery is dead
   if (batteryPercent <= 5) {
@@ -225,30 +208,63 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
   dispValue(batteryPercent, _prevBatteryPercent, 3, 0, 108, 10, 2, BLACK, DEFAULT_BG_COLOR);
   display.print("%");
 
-  // Battery shape end
-  display.fillRect(0, 36, 160, 1, BLACK);
-  display.fillRect(108, 0, 1, 36, BLACK);
-  display.fillRect(0, 92, 160, 1, BLACK);
+  const float kWatts = constrain(escTelemetry.watts / 1000.0, 0, 50);
+  dispValue(kWatts, _prevKilowatts, 4, 1, 10, 42, 2, BLACK, DEFAULT_BG_COLOR);
+  display.print("kW");
+
+  dispValue(escTelemetry.volts, _prevVolts, 5, 1, 84, 42, 2, BLACK, DEFAULT_BG_COLOR);
+  display.print("V");
+
+  const float kwh = escTelemetry.wattHours / 1000.0;
+  dispValue(kwh, _prevKwh, 4, 1, 10, 71, 2, BLACK, DEFAULT_BG_COLOR);
+  display.print("kWh");
+
+  dispValue(escTelemetry.amps, _prevAmps, 3, 0, 108, 71, 2, BLACK, DEFAULT_BG_COLOR);
+  display.print("A");
+
+  // Display performance mode
+  display.setTextSize(1);
+  static unsigned int _prevPerformanceMode = 100;
+  if (_prevPerformanceMode != deviceData.performance_mode) {
+    if (deviceData.performance_mode == 0) {
+      display.setTextColor(DEFAULT_BG_COLOR);
+      display.setCursor(30, 60);
+      display.print("SPORT");
+      display.setCursor(30, 60);
+      display.setTextColor(BLUE);
+      display.print("CHILL");
+    } else {
+      display.setTextColor(DEFAULT_BG_COLOR);
+      display.setCursor(30, 60);
+      display.print("CHILL");
+      display.setCursor(30, 60);
+      display.setTextColor(RED);
+      display.print("SPORT");
+    }
+  }
+  
+  //updateStatusBar(armed, cruising);
+
+  // Display current armed time
+  display.setTextColor(BLACK);
+  display.setCursor(8, 102);
+  display.setTextSize(2);
+  const int minutes = sessionSeconds / 60;
+  const int seconds = sessionSeconds % 60;
+  display.printf("%02d:%02d", minutes, seconds);
 
   // Display altitude
   display.setTextSize(2);
   if (altitude == 0.0) {  // If no bmp, just display "ERR"
-    display.setCursor (85, 102);
+    display.setCursor (84, 102);
     display.setTextColor(RED);
     display.print(F("AL ERR"));
   } else {
     // Display in ft if not using metric
     const float alt = deviceData.metric_alt ? altitude : (round(altitude * 3.28084));
-    dispValue(alt, _prevAlt, 5, 0, 70, 102, 2, BLACK, DEFAULT_BG_COLOR);
-    display.print(deviceData.metric_alt ? F("m") : F("ft"));
+    dispValue(alt, _prevAlt, 5, 0, 84, 102, 2, BLACK, DEFAULT_BG_COLOR);
+    display.print(deviceData.metric_alt ? F("m") : F("f"));
   }
-
-  display.setCursor(8, 102);
-  display.setTextSize(2);
-  const int hours = sessionSeconds / 3600;
-  const int minutes = (sessionSeconds / 60) % 60;
-  const int seconds = sessionSeconds % 60;
-  display.printf("%02d:%02d:%02d", hours, minutes, seconds);
 
   static bool _prevArmed = false;
   if ((armed && !_prevArmed) || (!armed && _prevArmed)) {
@@ -272,6 +288,5 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
     display.setTextSize(1);
     display.setTextColor(DEFAULT_BG_COLOR);
     display.print(F("CRUISE"));  // overwrite in bg color to remove
-    display.setTextColor(BLACK);
   }
 }

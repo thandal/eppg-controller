@@ -90,7 +90,7 @@ void resetDeviceData(STR_DEVICE_DATA_140_V1* deviceData) {
   deviceData->version_major = VERSION_MAJOR;
   deviceData->version_minor = VERSION_MINOR;
   deviceData->armed_seconds = 0;
-  deviceData->screen_rotation = 3;
+  deviceData->screen_rotation = 1;  // 1 = right hand, 3 = left hand
   deviceData->sea_pressure = DEFAULT_SEA_PRESSURE;  // 1013.25 mbar
   deviceData->metric_temp = true;
   deviceData->metric_alt = true;

@@ -1,6 +1,8 @@
 #include "sp140/config.h"
 #include "sp140/web_usb.h"
 
+#include <Arduino.h>
+
 #ifdef USE_TINYUSB
   #include <ArduinoJson.h>
   #include "Adafruit_TinyUSB.h"

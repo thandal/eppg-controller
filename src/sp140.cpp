@@ -109,7 +109,11 @@ void handleButtonEvent(AceButton* /* btn */, uint8_t eventType, uint8_t /* st */
     // Toggle the mode: 0=CHILL, 1=SPORT
     deviceData.performance_mode = (deviceData.performance_mode == 0) ? 1 : 0;
     writeDeviceData(&deviceData);
-    buzzerSequence(900, 1976);
+
+    // HACK
+    buzzerNote(800, 500);
+
+//    buzzerSequence(900, 1976);
     return;
   }
 }
@@ -174,7 +178,7 @@ void ledBlinkThreadCallback() {
 void displayThreadCallback() {
   // Assuming we arm on the ground
   const float altitude = getAltitude(deviceData);  
-  if (!armed) setGroundAltitude(altitude);
+  //if (!armed) setGroundAltitude(altitude);
   unsigned int armedSeconds = (millis() - armedStartMillis) / 1000;
   updateDisplay(
     deviceData, getEscTelemetry(), altitude,
@@ -189,7 +193,7 @@ void webUsbLineStateCallback(bool connected) {
 void webUsbThreadCallback() {
   if (!armed && parseWebUsbSerial(&deviceData)) {
     writeDeviceData(&deviceData);
-    resetDisplay(deviceData);
+    resetDisplay(deviceData);  // Screen orientation may have changed
     sendWebUsbSerial(deviceData);
   }
 }
@@ -221,6 +225,7 @@ void setup() {
   setupWebUsbSerial(webUsbLineStateCallback);
   setupDisplay(deviceData);
   delay(2000);  // Let the startup screen show for 2 s
+  resetDisplay(deviceData);
   setupWatchdog();
 
   ledBlinkThread.onRun(ledBlinkThreadCallback);
@@ -257,6 +262,7 @@ void loop1() {
   if (rp2040.fifo.available() > 0) {
     STR_NOTE note;
     note.data = rp2040.fifo.pop();  
+    Serial.println("note!");
     buzzerNote(note.f.freq, note.f.duration);
   }
 }

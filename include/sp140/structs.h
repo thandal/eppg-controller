@@ -24,7 +24,7 @@ typedef struct {
   uint8_t version_major;     // VERSION_MAJOR from config.h
   uint8_t version_minor;     // VERSION_MINOR from config.h
   uint16_t armed_seconds;    // seconds
-  uint8_t screen_rotation;   // 1,2,3,4 (90 deg)
+  uint8_t screen_rotation;   // 1 = left hand, 2, 3 = right hand, 4 (90 deg)
   float sea_pressure;        // 1013.25 mbar
   bool metric_temp;          // Display temperature in C/F
   bool metric_alt;           // Display altitude in m/ft
