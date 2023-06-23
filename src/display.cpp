@@ -77,7 +77,7 @@ void setupDisplay(const STR_DEVICE_DATA_140_V1& deviceData) {
 void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
                    const STR_ESC_TELEMETRY_140& escTelemetry,
                    float altitude, bool armed, bool cruising,
-                   unsigned int sessionSeconds) {
+                   unsigned int armedStartMillis) {
   canvas.fillScreen(DEFAULT_BG_COLOR);
   canvas.setTextWrap(false);
 
@@ -163,9 +163,10 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
   canvas.setTextColor(BLACK);
   canvas.setTextSize(2);
   canvas.setCursor(8, 102);
-  const int minutes = sessionSeconds / 60;
-  const int seconds = sessionSeconds % 60;
-  canvas.printf("%02d:%02d", minutes, seconds);
+  static unsigned int _lastArmedMillis = 0;
+  if (armed) _lastArmedMillis = millis();
+  const int sessionSeconds = (_lastArmedMillis - armedStartMillis) / 1000.0;
+  canvas.printf("%02d:%02d", sessionSeconds / 60, sessionSeconds % 60);
 
   // Display altitude
   canvas.setCursor (72, 102);

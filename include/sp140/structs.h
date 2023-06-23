@@ -23,7 +23,7 @@ typedef struct {
   # Bit 2: ESC Over temperature event occuring, shut down method as per configuration
   # Bit 3: ESC Overvoltage event occuring, shut down method as per configuration
   # Bit 4: ESC Undervoltage event occuring, shut down method as per configuration
-  # Bit 5: Startup error detected, motor stall detected upon trying to start*/
+  # Bit 5: Startup error detected, motor stall detected upon trying to start */
   uint8_t statusFlag;
 } STR_ESC_TELEMETRY_140;
 

@@ -85,7 +85,7 @@ void handleButtonEvent(AceButton* /* btn */, uint8_t eventType, uint8_t /* st */
     // ARM
     // Don't allow immediate rearming
     const unsigned int currentMillis = millis();
-    if (currentMillis - armedStartMillis < 1000) {  
+    if (currentMillis - armedStartMillis < 2000) {  
       return;
     }
 
@@ -109,10 +109,7 @@ void handleButtonEvent(AceButton* /* btn */, uint8_t eventType, uint8_t /* st */
     deviceData.performance_mode = (deviceData.performance_mode == 0) ? 1 : 0;
     writeDeviceData(&deviceData);
 
-    // HACK
-    buzzerNote(800, 500);
-
-//    buzzerSequence(900, 1976);
+    buzzerSequence(900, 1976);
     return;
   }
 }
@@ -178,10 +175,8 @@ void displayThreadCallback() {
   // Assuming we arm on the ground
   const float altitude = getAltitude(deviceData);  
   //if (!armed) setGroundAltitude(altitude);
-  unsigned int armedSeconds = (millis() - armedStartMillis) / 1000;
   updateDisplay(
-    deviceData, getEscTelemetry(), altitude,
-    armed, cruising, armedSeconds);
+    deviceData, getEscTelemetry(), altitude, armed, cruising, armedStartMillis);
 }
 
 void webUsbLineStateCallback(bool connected) {
@@ -204,6 +199,7 @@ void webUsbThreadCallback() {
 // The setup function runs once when you press reset or power the board.
 void setup() {
   Serial.begin(115200);  // For debug
+  Serial.println("Setup!");
 
   // Set up the throttle
   analogReadResolution(12);     // M0 family chip provides 12bit resolution. TODO: necessary given the next line?

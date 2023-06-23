@@ -196,7 +196,7 @@ void parseEscSerialData(byte buffer[]) {
 //}
 
 const STR_ESC_TELEMETRY_140& getEscTelemetry() {
-    return escTelemetry;
+  return escTelemetry;
 }
 
 void updateEscTelemetry() {
