@@ -81,6 +81,8 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
   canvas.fillScreen(DEFAULT_BG_COLOR);
   canvas.setTextWrap(false);
 
+  const unsigned int nowMillis = millis();
+
   // Display region lines
   canvas.drawFastHLine(0, 36, 160, BLACK);
   canvas.drawFastVLine(100, 0, 36, BLACK);
@@ -88,24 +90,29 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
   canvas.drawFastHLine(0, 92, 160, BLACK);
 
   // Display battery level and status
-  canvas.setTextColor(BLACK);
   canvas.setTextSize(2);
   const float batteryPercent = getBatteryPercent(escTelemetry.volts);
   //   Display battery bar
-  if (batteryPercent > 0) {
-    unsigned int batteryColor = RED;
-    if (batteryPercent >= 30) batteryColor = GREEN;
-    else if (batteryPercent >= 15) batteryColor = YELLOW;
-    int batteryPercentWidth = map((int)batteryPercent, 0, 100, 0, 100);
-    canvas.fillRect(0, 0, batteryPercentWidth, 36, batteryColor);
-  } else {
-    canvas.setCursor(12, 3);
+  if ((nowMillis - escTelemetry.lastUpdateMillis) > 2000) {
+    canvas.setCursor(4, 3);
     canvas.setTextColor(RED);
-    canvas.println("BATTERY");
-    if (escTelemetry.volts < 10) {
-      canvas.print(" ERROR");
+    canvas.print("ESC DATA\n  ERROR");
+  } else {
+    if (batteryPercent > 0) {
+      unsigned int batteryColor = RED;
+      if (batteryPercent >= 30) batteryColor = GREEN;
+      else if (batteryPercent >= 15) batteryColor = YELLOW;
+      int batteryPercentWidth = map((int)batteryPercent, 0, 100, 0, 100);
+      canvas.fillRect(0, 0, batteryPercentWidth, 36, batteryColor);
     } else {
-      canvas.print(" DEAD");
+      canvas.setCursor(12, 3);
+      canvas.setTextColor(RED);
+      canvas.println("BATTERY");
+      if (escTelemetry.volts < 10) {
+        canvas.print(" ERROR");
+      } else {
+        canvas.print(" DEAD");
+      }
     }
   }
   //   Display battery percent
@@ -164,7 +171,7 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
   canvas.setTextSize(2);
   canvas.setCursor(8, 102);
   static unsigned int _lastArmedMillis = 0;
-  if (armed) _lastArmedMillis = millis();
+  if (armed) _lastArmedMillis = nowMillis;
   const int sessionSeconds = (_lastArmedMillis - armedStartMillis) / 1000.0;
   canvas.printf("%02d:%02d", sessionSeconds / 60, sessionSeconds % 60);
 
@@ -182,6 +189,13 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
       canvas.printf("%5dft", (int)round(altitude * 3.28084));
     }
   }
+
+  // DEBUG TIMING
+  canvas.setTextSize(1);
+  canvas.setCursor(4, 118);
+  static unsigned int lastDisplayMillis = 0;
+  canvas.printf("%5d  %5d", nowMillis - escTelemetry.lastUpdateMillis, nowMillis - lastDisplayMillis);
+  lastDisplayMillis = nowMillis;
 
   // Draw the canvas to the display.
   display.drawRGBBitmap(0, 0, canvas.getBuffer(), canvas.width(), canvas.height());

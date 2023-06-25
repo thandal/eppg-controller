@@ -161,6 +161,15 @@ void throttleThreadCallback() {
 
 void escTelemetryThreadCallback() {
   updateEscTelemetry();
+  static unsigned int lastEscStaleWarningMillis = 0;
+  const unsigned int nowMillis = millis();
+  if (nowMillis - getEscTelemetry().lastUpdateMillis > 2000) { // Alert if no fresh ESC telemetry
+      if (nowMillis - lastEscStaleWarningMillis > 2000) {  // Alert every 2 seconds
+        lastEscStaleWarningMillis = nowMillis;
+        vibrateNotify();
+        buzzerSequence(1000, 1000);
+      }
+  }
 }
 
 void buttonThreadCallback() {

@@ -123,6 +123,9 @@ void parseEscSerialData(byte buffer[]) {
 
   // Status
   escTelemetry.statusFlag = telem.statusFlag;
+
+  // Update freshness
+  escTelemetry.lastUpdateMillis = millis();
 }
 
 // For debugging
@@ -138,12 +141,12 @@ const STR_ESC_TELEMETRY_140& getEscTelemetry() {
   return escTelemetry;
 }
 
+// TODO: harden this code: it *frequently* loses sync with the messages.
 void updateEscTelemetry() {
   // Flush the input to get to a fresh message.
   while (SerialESC.available() > 0) SerialESC.read();
 
   byte escDataV2[ESC_DATA_V2_SIZE];
-  // TODO alert if no new data in 3 seconds
   if (SerialESC.readBytes(escDataV2, ESC_DATA_V2_SIZE)) {
     //printRawEscData(escDataV2);
     parseEscSerialData(escDataV2);
