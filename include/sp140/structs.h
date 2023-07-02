@@ -26,6 +26,9 @@ typedef struct {
   // # Bit 5: Startup error detected, motor stall detected upon trying to start
   uint8_t statusFlag;
   unsigned int lastUpdateMillis;
+  unsigned int lastReadBytes;
+  unsigned int errorStopBytes;
+  unsigned int errorChecksum;
 } STR_ESC_TELEMETRY_140;
 
 // Device configuration data

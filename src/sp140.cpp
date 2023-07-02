@@ -243,7 +243,7 @@ void setup() {
   throttleThread.setInterval(22);
 
   escTelemetryThread.onRun(escTelemetryThreadCallback);
-  escTelemetryThread.setInterval(50);
+  escTelemetryThread.setInterval(10);
 
   webUsbThread.onRun(webUsbThreadCallback);
   webUsbThread.setInterval(50);

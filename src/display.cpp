@@ -45,7 +45,7 @@ void resetRotation(unsigned int rotation) {
 }
 
 void displayBoot(const STR_DEVICE_DATA_140_V1& deviceData) {
-  display.fillScreen(DEFAULT_BG_COLOR);
+  display.fillScreen(WHITE);
   display.setFont(&FreeSansBold12pt7b);
   display.setTextColor(BLACK);
   display.setCursor(20, 30);
@@ -78,7 +78,7 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
                    const STR_ESC_TELEMETRY_140& escTelemetry,
                    float altitude, bool armed, bool cruising,
                    unsigned int armedStartMillis) {
-  canvas.fillScreen(DEFAULT_BG_COLOR);
+  canvas.fillScreen(WHITE);
   canvas.setTextWrap(false);
 
   const unsigned int nowMillis = millis();
@@ -143,7 +143,7 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
 
   canvas.setCursor(46, 83);
   if (armed) {
-    canvas.setTextColor(BLACK, ARMED_BG_COLOR);
+    canvas.setTextColor(BLACK, CYAN);
     canvas.print("ARMED");
   } else {
     canvas.setTextColor(BLACK, GREEN);
@@ -161,9 +161,9 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
   canvas.printf("ESC%2d", escTelemetry.statusFlag);
   
   // Display statusbar
-  unsigned int statusBarColor = DEFAULT_BG_COLOR;
+  unsigned int statusBarColor = WHITE;
   if (cruising) statusBarColor = YELLOW;
-  else if (armed) statusBarColor = ARMED_BG_COLOR;
+  else if (armed) statusBarColor = CYAN;
   canvas.fillRect(0, 93, 160, 40, statusBarColor);
 
   // Display armed time for the current session
@@ -196,6 +196,8 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
   static unsigned int lastDisplayMillis = 0;
   canvas.printf("%5d  %5d", nowMillis - escTelemetry.lastUpdateMillis, nowMillis - lastDisplayMillis);
   lastDisplayMillis = nowMillis;
+
+  canvas.printf("  %3d %2d %2d", escTelemetry.lastReadBytes, escTelemetry.errorStopBytes, escTelemetry.errorChecksum);
 
   // Draw the canvas to the display.
   display.drawRGBBitmap(0, 0, canvas.getBuffer(), canvas.width(), canvas.height());

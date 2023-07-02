@@ -37,6 +37,12 @@ static STR_ESC_TELEMETRY_140 escTelemetry;
 CircularBuffer<float, 50> voltsBuffer;
 unsigned long prevWattHoursMillis = 0;
 
+// Calibration
+#define BATT_MIN_V            60.0  // 24 * 2.5V per cell
+#define MAMP_OFFSET           200
+#define VOLT_OFFSET           1.5
+
+
 int checkFlectcher16(byte byteBuffer[], int len) {
     int c0 = 0;
     int c1 = 0;
@@ -53,8 +59,8 @@ int checkFlectcher16(byte byteBuffer[], int len) {
 
 void parseEscSerialData(byte buffer[]) {
   if (buffer[20] != 255 || buffer[21] != 255) {
-    Serial.println("no stop byte");
-    return; // Stop byte of 65535 not recieved
+    escTelemetry.errorStopBytes++;
+    return; // Stop bytes of 0xFF 0xFF not recieved
   }
 
   // Check the Fletcher checksum
@@ -64,7 +70,7 @@ void parseEscSerialData(byte buffer[]) {
 
   // Checksums do not match
   if (checkFletch != checksum) {
-    Serial.println("checksum error");
+    escTelemetry.errorChecksum++;
     return;
   }
 
@@ -141,19 +147,18 @@ const STR_ESC_TELEMETRY_140& getEscTelemetry() {
   return escTelemetry;
 }
 
-// TODO: harden this code: it *frequently* loses sync with the messages.
 void updateEscTelemetry() {
-  // Flush the input to get to a fresh message.
-  while (SerialESC.available() > 0) SerialESC.read();
-
-  byte escDataV2[ESC_DATA_V2_SIZE];
-  if (SerialESC.readBytes(escDataV2, ESC_DATA_V2_SIZE)) {
-    //printRawEscData(escDataV2);
-    parseEscSerialData(escDataV2);
+  byte buffer[256];
+  escTelemetry.lastReadBytes = SerialESC.readBytes(buffer, 256);
+  if (escTelemetry.lastReadBytes >= 22) {
+    //printRawEscData(buffer);
+    parseEscSerialData(&buffer[escTelemetry.lastReadBytes - 22]);
   }
 }
 
 void setupEscTelemetry() {
   SerialESC.begin(ESC_BAUD_RATE);
   SerialESC.setTimeout(ESC_TIMEOUT);
+  escTelemetry.errorStopBytes = 0;
+  escTelemetry.errorChecksum = 0;
 }
