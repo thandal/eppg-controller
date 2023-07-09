@@ -236,7 +236,7 @@ void setup() {
   displayThread.setInterval(250);
 
   buttonThread.onRun(buttonThreadCallback);
-  buttonThread.setInterval(50);
+  buttonThread.setInterval(5);
 
   throttleThread.onRun(throttleThreadCallback);
   throttleThread.setInterval(22);
