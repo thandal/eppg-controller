@@ -1,5 +1,5 @@
-#ifndef SP140_DISPLAY_H_
-#define SP140_DISPLAY_H_
+#ifndef INCLUDE_SP140_DISPLAY_H_
+#define INCLUDE_SP140_DISPLAY_H_
 
 #include "sp140/structs.h"
 #include <Adafruit_ST7735.h>
@@ -30,4 +30,4 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
                    float altitude, bool armed, bool cruising,
                    unsigned int armedStartMillis);
 
-#endif  // SP140_DISPLAY_H_
+#endif  // INCLUDE_SP140_DISPLAY_H_

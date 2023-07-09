@@ -1,5 +1,5 @@
-#ifndef SP140_BUZZER_H_
-#define SP140_BUZZER_H_
+#ifndef INCLUDE_SP140_BUZZER_H_
+#define INCLUDE_SP140_BUZZER_H_
 
 #include <stdint.h>
 
@@ -13,4 +13,4 @@ void buzzerNote(uint16_t freq, uint16_t duration);
 void buzzerSequence(uint16_t sequence[], int millis);
 void buzzerSequence(uint16_t freq1, uint16_t freq2 = 0, uint16_t freq3 = 0);
 
-#endif  // SP140_BUZZER_H_
+#endif  // INCLUDE_SP140_BUZZER_H_

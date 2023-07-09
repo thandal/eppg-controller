@@ -6,7 +6,7 @@
 #include <CircularBuffer.h>        // smooth out readings
 
 #pragma pack(push, 1)
-// ESC serial telemetry packet v2: see https://docs.powerdrives.net/products/uhv/uart-telemetry-output 
+// ESC serial telemetry packet v2: see https://docs.powerdrives.net/products/uhv/uart-telemetry-output
 typedef struct  {
   // Voltage
   int16_t rawVolts;
@@ -35,7 +35,7 @@ typedef struct  {
 
 static STR_ESC_TELEMETRY_140 escTelemetry;
 CircularBuffer<float, 50> voltsBuffer;
-unsigned long prevWattHoursMillis = 0;
+uint32_t prevWattHoursMillis = 0;
 
 // Calibration
 #define BATT_MIN_V            60.0  // 24 * 2.5V per cell
@@ -47,7 +47,7 @@ uint16_t checkFletcher16(byte buffer[], int len) {
   // See https://en.wikipedia.org/wiki/Fletcher's_checksum
   uint16_t c0 = 0;
   uint16_t c1 = 0;
-  for (int i = 0; i < len; ++i) { 
+  for (int i = 0; i < len; ++i) {
     c0 = (c0 + buffer[i]) % 255;
     c1 = (c1 + c0) % 255;
   }
@@ -59,7 +59,7 @@ void parseEscSerialData(byte buffer[]) {
   if (buffer[20] != 255 || buffer[21] != 255) {
     escTelemetry.errorStopBytes++;
     Serial.println("ESC parse error: No stop bytes");
-    return; // Stop bytes of 0xFF 0xFF not recieved
+    return;
   }
 
   // Check the Fletcher checksum
@@ -74,10 +74,10 @@ void parseEscSerialData(byte buffer[]) {
     return;
   }
 
-  STR_ESC_TELEMETRY_140_V2 &telem = *(STR_ESC_TELEMETRY_140_V2*)buffer;
-  
+  STR_ESC_TELEMETRY_140_V2 &telem = *reinterpret_cast<STR_ESC_TELEMETRY_140_V2*>(buffer);
+
   float volts = telem.rawVolts / 100;
-  if (volts > BATT_MIN_V) volts += 1.0; // calibration
+  if (volts > BATT_MIN_V) volts += 1.0;  // Calibration?
   voltsBuffer.push(volts);
   float avgVolts = 0.0;
   for (decltype(voltsBuffer)::index_t i = 0; i < voltsBuffer.size(); ++i) {
@@ -91,20 +91,20 @@ void parseEscSerialData(byte buffer[]) {
   const int NOMINAL_TEMPERATURE = 25;
   const int BCOEFFICIENT = 3455;
   // Convert value to resistance
-  float Rntc = (4096 / (float) telem.rawTemperature) - 1;
+  float Rntc = (4096 / static_cast<float>(telem.rawTemperature)) - 1;
   Rntc = SERIESRESISTOR / Rntc;
   // Compute the temperature
-  float temperature = Rntc / (float) NOMINAL_RESISTANCE; // (R/Ro)
-  temperature = (float) log(temperature); // ln(R/Ro)
-  temperature /= BCOEFFICIENT; // 1/B * ln(R/Ro)
-  temperature += 1.0 / ((float) NOMINAL_TEMPERATURE + 273.15); // + (1/To)
-  temperature = 1.0 / temperature; // Invert
-  temperature -= 273.15; // convert to Celcius
+  float temperature = Rntc / static_cast<float>(NOMINAL_RESISTANCE);  // (R/Ro)
+  temperature = static_cast<float>(log(temperature));  // ln(R/Ro)
+  temperature /= BCOEFFICIENT;  // 1/B * ln(R/Ro)
+  temperature += 1.0 / (static_cast<float>(NOMINAL_TEMPERATURE) + 273.15);  // + (1/To)
+  temperature = 1.0 / temperature;  // Invert
+  temperature -= 273.15;  // convert to Celsius
   // Filter bad values
   if (temperature < 0 || temperature > 200) {
     temperature = 0;
   }
-  temperature = (float) trunc(temperature * 100) / 100; // 2 decimal places
+  temperature = static_cast<float>(trunc(temperature * 100)) / 100;  // 2 decimal places
   escTelemetry.temperatureC = temperature;
 
   // Current
@@ -112,14 +112,14 @@ void parseEscSerialData(byte buffer[]) {
   escTelemetry.watts = escTelemetry.amps * escTelemetry.volts;
 
   // Update wattHours
-  const unsigned long currentMillis= millis();
+  const uint32_t currentMillis = millis();
   const float deltaHours = (currentMillis - prevWattHoursMillis) / 1000.0 / 3600.0;
   prevWattHoursMillis = currentMillis;
   escTelemetry.wattHours += round(escTelemetry.watts * deltaHours);
 
   // RPM
   const int POLECOUNT = 62;
-  escTelemetry.rpm = telem.rawRpm / POLECOUNT;  // Real RPM output 
+  escTelemetry.rpm = telem.rawRpm / POLECOUNT;  // Real RPM output
 
   // Input Duty
   escTelemetry.inPWM = telem.dutyIn / 100;  // PWM = Duty?

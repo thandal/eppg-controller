@@ -1,5 +1,5 @@
-#ifndef SP140_STRUCTS_H_
-#define SP140_STRUCTS_H_
+#ifndef INCLUDE_SP140_STRUCTS_H_
+#define INCLUDE_SP140_STRUCTS_H_
 
 #include <stdint.h>
 
@@ -24,10 +24,10 @@ typedef struct {
   // # Bit 4: ESC Undervoltage event occuring, shut down method as per configuration
   // # Bit 5: Startup error detected, motor stall detected upon trying to start
   uint8_t statusFlag;
-  unsigned int lastUpdateMillis;
-  unsigned int lastReadBytes;
-  unsigned int errorStopBytes;
-  unsigned int errorChecksum;
+  uint32_t lastUpdateMillis;
+  uint32_t lastReadBytes;
+  uint32_t errorStopBytes;
+  uint32_t errorChecksum;
 } STR_ESC_TELEMETRY_140;
 
 // Device configuration data
@@ -52,9 +52,9 @@ typedef union {
     uint16_t freq;
     uint16_t duration;
   } f;
-  uint32_t data; // All packed up in a uint32.
+  uint32_t data;  // All packed up in a uint32.
 } STR_NOTE;
 
 #pragma pack(pop)
 
-#endif  // SP140_STRUCTS_H_
+#endif  // INCLUDE_SP140_STRUCTS_H_

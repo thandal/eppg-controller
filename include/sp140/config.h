@@ -1,7 +1,7 @@
-#ifndef SP140_SHARED_CONFIG_H_
-#define SP140_SHARED_CONFIG_H_
+#ifndef INCLUDE_SP140_CONFIG_H_
+#define INCLUDE_SP140_CONFIG_H_
 
-#define VERSION_MAJOR         6 
+#define VERSION_MAJOR         6
 #define VERSION_MINOR         0
 
 #define CRUISE_GRACE          1.5  // 1.5 seconds to get off throttle
@@ -17,14 +17,14 @@
 // 22 bytes at 115200 bps should take about 2 ms
 // We set the timeout to 2ms to be very conservative.
 #define ESC_DATA_V2_SIZE      22
-#define ESC_TIMEOUT           2 
+#define ESC_TIMEOUT           2
 
-#define ENABLE_BUZ            true    // enable buzzer
+#define ENABLE_BUZ            true  // enable buzzer
 
 #ifdef M0_PIO
-  #include "sp140/config-m0.h"     // device config
+  #include "sp140/config-m0.h"      // device config
 #else
-  #include "sp140/config-rp2040.h" // device config
+  #include "sp140/config-rp2040.h"  // device config
 #endif
 
-#endif  // SP140_SHARED_CONFIG_H_
+#endif  // INCLUDE_SP140_CONFIG_H_

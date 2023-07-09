@@ -38,18 +38,18 @@ String chipId() {
 
   char buf[33];
   // NOTE: we're just using the lower 16 bits of the uint32 vals.
-  sprintf(buf, "%08x%08x%08x%08x",
+  snprintf(buf, "%08x%08x%08x%08x",
           (unsigned int)val1,
           (unsigned int)val2,
           (unsigned int)val3,
           (unsigned int)val4);
   id = String(buf);
 #elif RP_PIO
-  int len = 2 * PICO_UNIQUE_BOARD_ID_SIZE_BYTES + 1;
-  char buf[len];
-  pico_get_unique_board_id_string(buf, len);
+  const int kPicoBoardIdLen = 2 * PICO_UNIQUE_BOARD_ID_SIZE_BYTES + 1;
+  char buf[kPicoBoardIdLen];
+  pico_get_unique_board_id_string(buf, kPicoBoardIdLen);
   id = String(buf);
-#endif // M0_PIO/RP_PIO
+#endif  // M0_PIO/RP_PIO
   return id;
 }
 
@@ -70,7 +70,7 @@ void rebootBootloader() {
 }
 #endif
 
-// TODO: why are there two different doc formats?
+// TODO(thandal): why are there two different doc formats?
 void sendWebUsbSerial(const STR_DEVICE_DATA_140_V1& deviceData) {
 #ifdef USE_TINYUSB
 #ifdef M0_PIO
@@ -92,7 +92,7 @@ void sendWebUsbSerial(const STR_DEVICE_DATA_140_V1& deviceData) {
   serializeJson(doc, output);
   usb_web.println(output);
 #elif RP_PIO
-  StaticJsonDocument<256> doc; // <- a little more than 256 bytes in the stack
+  StaticJsonDocument<256> doc;  // <- a little more than 256 bytes in the stack
 
   doc["mj_v"].set(VERSION_MAJOR);
   doc["mi_v"].set(VERSION_MINOR);
@@ -103,15 +103,15 @@ void sendWebUsbSerial(const STR_DEVICE_DATA_140_V1& deviceData) {
   doc["m_alt"].set(deviceData.metric_alt);
   doc["prf"].set(deviceData.performance_mode);
   doc["sea_p"].set(deviceData.sea_pressure);
-  //doc["id"].set(chipId()); // webusb bug prevents this extra field from being sent
+  // doc["id"].set(chipId()); // webusb bug prevents this extra field from being sent
 
   char output[256];
   serializeJson(doc, output, sizeof(output));
   usb_web.println(output);
   usb_web.flush();
-  //Serial.println(chipId());
-#endif // M0_PIO/RP_PIO
-#endif // USE_TINYUSB
+  // Serial.println(chipId());
+#endif  // M0_PIO/RP_PIO
+#endif  // USE_TINYUSB
 }
 
 
@@ -123,10 +123,10 @@ bool parseWebUsbSerial(STR_DEVICE_DATA_140_V1* deviceData) {
   deserializeJson(doc, usb_web);
 
   if (doc["command"] && doc["command"] == "rbl") {
-///    display.fillScreen(DEFAULT_BG_COLOR);
-///    display.setCursor(0, 0);
-///    display.setTextSize(2);
-///    display.println("BL - UF2");
+//    display.fillScreen(DEFAULT_BG_COLOR);
+//    display.setCursor(0, 0);
+//    display.setTextSize(2);
+//    display.println("BL - UF2");
     rebootBootloader();
     return false;  // run only the command
   }
@@ -142,10 +142,10 @@ bool parseWebUsbSerial(STR_DEVICE_DATA_140_V1* deviceData) {
   return true;
 #else
   return false;
-#endif // USE_TINYUSB
+#endif  // USE_TINYUSB
 }
 
-void setupWebUsbSerial(void (*lineStateCallback) (bool connected)) {
+void setupWebUsbSerial(void (*lineStateCallback)(bool connected)) {
 #ifdef USE_TINYUSB
   usb_web.begin();
   usb_web.setLandingPage(&landingPage);

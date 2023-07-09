@@ -75,10 +75,12 @@ void setupDisplay(const STR_DEVICE_DATA_140_V1& deviceData) {
   displayBoot(deviceData);
 }
 
-void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
-                   const STR_ESC_TELEMETRY_140& escTelemetry,
-                   float altitude, bool armed, bool cruising,
-                   unsigned int armedStartMillis) {
+void updateDisplay(
+  const STR_DEVICE_DATA_140_V1& deviceData,
+  const STR_ESC_TELEMETRY_140& escTelemetry,
+  float altitude, bool armed, bool cruising,
+  unsigned int armedStartMillis
+  ) {
   canvas.fillScreen(WHITE);
   canvas.setTextWrap(false);
 
@@ -103,7 +105,7 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
       unsigned int batteryColor = RED;
       if (batteryPercent >= 30) batteryColor = GREEN;
       else if (batteryPercent >= 15) batteryColor = YELLOW;
-      int batteryPercentWidth = map((int)batteryPercent, 0, 100, 0, 100);
+      int batteryPercentWidth = map(static_cast<int>(batteryPercent), 0, 100, 0, 100);
       canvas.fillRect(0, 0, batteryPercentWidth, 36, batteryColor);
     } else {
       canvas.setCursor(12, 3);
@@ -119,7 +121,7 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
   //   Display battery percent
   canvas.setCursor(108, 10);
   canvas.setTextColor(BLACK);
-  canvas.printf("%3d%%", (int)batteryPercent);
+  canvas.printf("%3d%%", static_cast<int>(batteryPercent));
 
   const float kWatts = constrain(escTelemetry.watts / 1000.0, 0, 50);
   const float volts = escTelemetry.volts;
@@ -160,7 +162,7 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
   canvas.setCursor(124, 83);
   canvas.setTextColor(BLACK);
   canvas.printf("ESC%2d", escTelemetry.statusFlag);
-  
+
   // Display statusbar
   unsigned int statusBarColor = WHITE;
   if (cruising) statusBarColor = YELLOW;
@@ -177,7 +179,7 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
   canvas.printf("%02d:%02d", sessionSeconds / 60, sessionSeconds % 60);
 
   // Display altitude
-  canvas.setCursor (72, 102);
+  canvas.setCursor(72, 102);
   canvas.setTextSize(2);
   if (altitude == __FLT_MIN__) {
     canvas.setTextColor(RED);
@@ -187,7 +189,7 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
     if (deviceData.metric_alt) {
       canvas.printf("%6.1fm", altitude);
     } else {
-      canvas.printf("%5dft", (int)round(altitude * 3.28084));
+      canvas.printf("%5dft", static_cast<int>(round(altitude * 3.28084)));
     }
   }
 

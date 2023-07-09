@@ -17,7 +17,8 @@
 #include <StaticThreadController.h>
 #include <Thread.h>
 
-using namespace ace_button;
+using ace_button::AceButton;
+using ace_button::ButtonConfig;
 
 AceButton button(BUTTON_TOP);
 ResponsiveAnalogRead throttlePot(THROTTLE_PIN, false);
@@ -62,8 +63,8 @@ void setLEDs(byte state) {
 
 // Event handler for button presses
 void handleButtonEvent(AceButton* /* btn */, uint8_t eventType, uint8_t /* st */) {
-  const bool doubleClick = eventType == AceButton::kEventDoubleClicked; 
-  const bool longPress = eventType == AceButton::kEventLongPressed; 
+  const bool doubleClick = eventType == AceButton::kEventDoubleClicked;
+  const bool longPress = eventType == AceButton::kEventLongPressed;
 
   if (doubleClick && armed) {
     // DISARM
@@ -85,7 +86,7 @@ void handleButtonEvent(AceButton* /* btn */, uint8_t eventType, uint8_t /* st */
     // ARM
     // Don't allow immediate rearming
     const unsigned int currentMillis = millis();
-    if (currentMillis - armedStartMillis < 2000) {  
+    if (currentMillis - armedStartMillis < 2000) {
       return;
     }
 
@@ -133,7 +134,7 @@ void setupButton() {
 void throttleThreadCallback() {
   // We need to consistently call throttlePot.update().
   // This should be the only place it is called!
-  throttlePot.update(); 
+  throttlePot.update();
 
   if (!armed) {
     escControl.writeMicroseconds(ESC_DISARMED_PWM);
@@ -143,7 +144,7 @@ void throttleThreadCallback() {
   static unsigned int cruiseStartMillis = 0;
   if (cruising) {
     if (cruiseStartMillis == 0) cruiseStartMillis = millis();
-    unsigned long cruisingSecs = (millis() - cruiseStartMillis) / 1000.0;
+    uint32_t cruisingSecs = (millis() - cruiseStartMillis) / 1000.0;
     if (cruisingSecs >= CRUISE_GRACE && throttleActive()) {
       cruising = false;
       vibrateNotify();
@@ -163,8 +164,8 @@ void escTelemetryThreadCallback() {
   updateEscTelemetry();
   static unsigned int lastEscStaleWarningMillis = 0;
   const unsigned int nowMillis = millis();
-  if (nowMillis - getEscTelemetry().lastUpdateMillis > 2000) { // Alert if no fresh ESC telemetry
-      if (nowMillis - lastEscStaleWarningMillis > 2000) {  // Alert every 2 seconds
+  if (nowMillis - getEscTelemetry().lastUpdateMillis > 2000) {  // Alert if no fresh ESC telemetry
+      if (nowMillis - lastEscStaleWarningMillis > 2000) {       // Alert every 2 seconds
         lastEscStaleWarningMillis = nowMillis;
         vibrateNotify();
         buzzerSequence(1000, 1000);
@@ -182,7 +183,7 @@ void ledBlinkThreadCallback() {
 
 void displayThreadCallback() {
   // Set the ground altitude if not armed (assumes we're on the ground).
-  const float altitude = getAltitude(deviceData, !armed);  
+  const float altitude = getAltitude(deviceData, !armed);
   updateDisplay(
     deviceData, getEscTelemetry(), altitude, armed, cruising, armedStartMillis);
 }
@@ -263,7 +264,7 @@ void setup1() {}
 void loop1() {
   if (rp2040.fifo.available() > 0) {
     STR_NOTE note;
-    note.data = rp2040.fifo.pop();  
+    note.data = rp2040.fifo.pop();
     tone(BUZZER_PIN, note.f.freq);
     delay(note.f.duration);
     noTone(BUZZER_PIN);

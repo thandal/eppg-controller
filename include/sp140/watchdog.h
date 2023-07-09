@@ -1,5 +1,5 @@
-#ifndef SP140_WATCHDOG_H_
-#define SP140_WATCHDOG_H_
+#ifndef INCLUDE_SP140_WATCHDOG_H_
+#define INCLUDE_SP140_WATCHDOG_H_
 
 // Set up the watchdog
 void setupWatchdog();
@@ -7,4 +7,4 @@ void setupWatchdog();
 // Touch the watchdog
 void resetWatchdog();
 
-#endif  // SP140_WATCHDOG_H_
+#endif  // INCLUDE_SP140_WATCHDOG_H_

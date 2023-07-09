@@ -1,5 +1,5 @@
-#ifndef SP140_DEVICE_DATA_H_
-#define SP140_DEVICE_DATA_H_
+#ifndef INCLUDE_SP140_DEVICE_DATA_H_
+#define INCLUDE_SP140_DEVICE_DATA_H_
 
 #include "sp140/structs.h"
 
@@ -15,4 +15,4 @@ void resetDeviceData(STR_DEVICE_DATA_140_V1* d);
 // Read saved data from EEPROM
 void refreshDeviceData(STR_DEVICE_DATA_140_V1* d);
 
-#endif  // SP140_DEVICE_DATA_H_
+#endif  // INCLUDE_SP140_DEVICE_DATA_H_

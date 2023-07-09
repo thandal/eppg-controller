@@ -50,17 +50,17 @@ void setupDeviceData() {
   #endif
 }
 
-//// For debugging
-//void printDeviceData(const STR_DEVICE_DATA_140_V1& deviceData) {
-//  Serial.print("version major ");
-//  Serial.println(deviceData.version_major);
-//  Serial.print("version minor ");
-//  Serial.println(deviceData.version_minor);
-//  Serial.print("armed_seconds ");
-//  Serial.println(deviceData.armed_seconds);
-//  Serial.print("crc ");
-//  Serial.println(deviceData.crc);
-//}
+//  // For debugging
+//  void printDeviceData(const STR_DEVICE_DATA_140_V1& deviceData) {
+//    Serial.print("version major ");
+//    Serial.println(deviceData.version_major);
+//    Serial.print("version minor ");
+//    Serial.println(deviceData.version_minor);
+//    Serial.print("armed_seconds ");
+//    Serial.println(deviceData.armed_seconds);
+//    Serial.print("crc ");
+//    Serial.println(deviceData.crc);
+//  }
 
 void sanitizeDeviceData(STR_DEVICE_DATA_140_V1* deviceData) {
   if (deviceData->screen_rotation != 1 && deviceData->screen_rotation != 3)
@@ -76,9 +76,9 @@ void sanitizeDeviceData(STR_DEVICE_DATA_140_V1* deviceData) {
 // Write deviceData to EEPROM
 void writeDeviceData(STR_DEVICE_DATA_140_V1* deviceData) {
   sanitizeDeviceData(deviceData);
-  deviceData->crc = crc16((uint8_t*)deviceData, sizeof(*deviceData) - 2);
+  deviceData->crc = crc16(reinterpret_cast<uint8_t*>(deviceData), sizeof(*deviceData) - 2);
   #ifdef M0_PIO
-    eep.write(EEPROM_OFFSET, (uint8_t*)deviceData, sizeof(*deviceData));
+    eep.write(EEPROM_OFFSET, reinterpret_cast<uint8_t*>(deviceData), sizeof(*deviceData));
   #elif RP_PIO
     EEPROM.put(EEPROM_OFFSET, *deviceData);
     EEPROM.commit();
@@ -105,13 +105,13 @@ void resetDeviceData(STR_DEVICE_DATA_140_V1* deviceData) {
 // Read saved data from EEPROM
 void refreshDeviceData(STR_DEVICE_DATA_140_V1* deviceData) {
   #ifdef M0_PIO
-    eep.read(EEPROM_OFFSET, (uint8_t*)deviceData, sizeof(*deviceData));
+    eep.read(EEPROM_OFFSET, reinterpret_cast<uint8_t*>(deviceData), sizeof(*deviceData));
   #elif RP_PIO
     EEPROM.get(EEPROM_OFFSET, *deviceData);
   #endif
   // Reset the data if there is a checksum error.
-  // TODO: provide some sort of error?
-  uint16_t crc = crc16((uint8_t*)deviceData, sizeof(*deviceData) - 2);
+  // TODO(thandal): provide some sort of error?
+  uint16_t crc = crc16(reinterpret_cast<uint8_t*>(deviceData), sizeof(*deviceData) - 2);
   if (crc != deviceData->crc) {
     resetDeviceData(deviceData);
   }

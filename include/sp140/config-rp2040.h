@@ -1,5 +1,5 @@
-#ifndef SP140_RP2040_CONFIG_H_
-#define SP140_RP2040_CONFIG_H_
+#ifndef INCLUDE_SP140_CONFIG_RP2040_H_
+#define INCLUDE_SP140_CONFIG_RP2040_H_
 
 // Arduino Pins
 #define BUTTON_TOP    15  // arm/disarm button_top
@@ -19,4 +19,4 @@
 #define ESC_PIN       14
 #define ENABLE_VIB    false    // enable vibration
 
-#endif  // SP140_RP2040_CONFIG_H_
+#endif  // INCLUDE_SP140_CONFIG_RP2040_H_

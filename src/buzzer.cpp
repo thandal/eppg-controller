@@ -1,7 +1,10 @@
+#include "sp140/buzzer.h"
+
+#include <stdint.h>
+
 #include "sp140/config.h"
 #include "sp140/structs.h"
 
-#include <stdint.h>
 #include <Arduino.h>
 
 void buzzerNote(uint16_t freq, uint16_t millis) {
@@ -13,7 +16,7 @@ void buzzerNote(uint16_t freq, uint16_t millis) {
   rp2040.fifo.push_nb(note.data);
 #else
 // Blocking buzzer can cause timing issues in the main control loops.
-// TODO: implement non-blocking buzzer (or use a library like ezBuzzer)
+// TODO(thandal): implement non-blocking buzzer (or use a library like ezBuzzer)
 //  // Blocking tone function that delays for notes
 //  tone(BUZZER_PIN, freq);
 //  delay(millis);  // to distinguish the notes, delay between them
