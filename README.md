@@ -1,25 +1,16 @@
-# EPPG Controller
+> NOTE: This is a community branch, and is not supported by OpenPPG!!!
+> NOTE: It may not be stable and is not recommended for flying.
+> See official OpenPPG stable releases [here](https://github.com/openppg/eppg-controller/releases)
 
-![Build](https://github.com/openppg/eppg-controller/actions/workflows/config.yml/badge.svg)
+# OpenPPG Controller
 
-Arduino based logic for OpenPPG SP140 Throttle Controller
+![Build](https://github.com/thandal/eppg-controller/actions/workflows/config.yml/badge.svg)
 
-#### This master branch is only for testing the latest firmware for the and SP140
+Arduino-based logic for OpenPPG SP140 RP2040 Throttle Controller.
 
-X4 code has been migrated to a separate repo - https://github.com/openppg/x4-controller
+Download releases [here](https://github.com/thandal/eppg-controller/releases)
 
-It may not be stable and is not recommended for flying.
-See stable releases [here](https://github.com/openppg/eppg-controller/releases)
-
-> For batch 3 (non-telemetry) controllers please see the [batch-3 branch](https://github.com/openppg/eppg-controller/tree/batch-3).
-
-> For batch 2 (Arduino nano based) controllers please see the [batch-2 branch](https://github.com/openppg/eppg-controller/tree/batch-2).
-
-## Build and flash firmware
-
-OpenPPG supports flashing the firmware PlatformIO. Older versions were also compatible with Arduino IDE.
-
-## Using PlatformIO
+## Build and flash firmware using PlatformIO
 
 Suitable for Mac, Windows, and Linux
 
@@ -33,40 +24,11 @@ Suitable for Mac, Windows, and Linux
 
 1. Click the "PlatformIO Build" button inside of VSCode or enter `platformio run --target upload` in the command line. PlatformIO will automatically download libraries the first time it runs.
 
-#### Install the driver
-
-Batch 3+ OpenPPG controllers and early SP140 controllers are powered by Atmel’s SAMD21G18A MCU, featuring a 32-bit ARM Cortex® M0+ core. On some operating systems you may need extra drivers to communicate with it.
-Newer SP140 controllers feature the RP2040 MCU which is a dual-core variant of the ARM Cortex® M0+. 
-
-#### Download and Prepare OpenPPG Code
-
-1. Download the latest controller code zip from [here](https://github.com/openppg/eppg-controller/archive/master.zip)
-
-#### Flash the OpenPPG Code
-
-1. First make sure the code compiles by hitting the check button in the bottom left "Build".
-2. Connect the controller to your computer by using the USB port on the bottom of the controller.
-3. Flash the firmware by clicking "Upload" in the bottom left.
-
-## Bootloader
-
-The latest batches of OpenPPG SP140 controllers use the UF2 bootloader (compatible with Arduino).
-It makes firmware updates as simple as drag and drop.
-Learn more here https://github.com/openppg/uf2-samdx1
-
-### Building .uf2 update file
-
-The uf2 bootloader can update firmware with a .uf2 binary file built from a complied .bin firmware file. The .bin file is automatically built when "verifying" the firmware in either Arduino IDE or PIO.
-Using the uf2-samdx repo above python tool the command to build a compatible .uf2 file should look something like:
-
-```bash
-$ python3 utils/uf2conv.py eppg-controller/.pio/build/OpenPPG\ CM0/firmware.bin -c -o sp140-update.uf2
-```
-
 ## Config tool
 
-The open source web based config tool for updating certain settings over USB (without needing to flash firmware) can be found at https://config.openppg.com.
+> NOTE: Web-based config is not currently supported for this branch!
 
+The open source web based config tool for updating certain settings over USB (without needing to flash firmware) can be found at https://config.openppg.com.
 
 ## Help improve these docs
 
