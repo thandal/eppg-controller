@@ -1,8 +1,8 @@
-#include "sp140/config.h"
-#include "sp140/structs.h"
+#include "sp140/display.h"
 
-#include <Adafruit_ST7735.h>
-#include <Fonts/FreeSansBold12pt7b.h>
+#include "sp140/config.h"
+#include "sp140/openppg_logo.h"
+#include "sp140/structs.h"
 
 Adafruit_ST7735 display = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
 GFXcanvas16 canvas(160, 128);
@@ -46,19 +46,20 @@ void resetRotation(unsigned int rotation) {
 
 void displayBoot(const STR_DEVICE_DATA_140_V1& deviceData) {
   display.fillScreen(WHITE);
-  display.setFont(&FreeSansBold12pt7b);
-  display.setTextColor(BLACK);
-  display.setCursor(20, 30);
-  display.println("OpenPPG");
-  display.setFont();
+  display.drawXBitmap(8, 10, openppg_logo, 140, 42, BLACK);
   display.setTextSize(2);
   display.setCursor(50, 60);
-  display.print("v" + String(VERSION_MAJOR) + "." + String(VERSION_MINOR));
+  display.setTextColor(BLACK);
+  display.printf("v%d.%d", VERSION_MAJOR, VERSION_MINOR);
 #ifdef RP_PIO
   display.print("R");
 #endif
+  display.setTextColor(GRAY);
+  display.setCursor(25, 80);
+  display.print("[thandal]");
   // Total armed time
-  display.setCursor(35, 90);
+  display.setTextColor(BLACK);
+  display.setCursor(32, 100);
   const int hours = deviceData.armed_seconds / 3600;
   const int minutes = (deviceData.armed_seconds / 60) % 60;
   const int seconds = deviceData.armed_seconds % 60;

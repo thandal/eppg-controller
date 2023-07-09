@@ -20,20 +20,7 @@
 #define ESC_DATA_V2_SIZE      22
 #define ESC_TIMEOUT           2 
 
-#define BLACK                 ST77XX_BLACK
-#define WHITE                 ST77XX_WHITE
-#define GREEN                 ST77XX_GREEN
-#define YELLOW                ST77XX_YELLOW
-#define RED                   ST77XX_RED
-#define BLUE                  ST77XX_BLUE
-#define ORANGE                ST77XX_ORANGE
-#define CYAN                  ST77XX_CYAN
-#define PURPLE                0x780F
-
 #define ENABLE_BUZ            true    // enable buzzer
-
-// Library config
-#define NO_ADAFRUIT_SSD1306_COLOR_COMPATIBILITY
 
 #ifdef M0_PIO
   #include "sp140/config-m0.h"     // device config
