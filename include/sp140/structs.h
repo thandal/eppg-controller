@@ -1,4 +1,3 @@
-// Copyright 2020 <Zach Whitehead>
 #ifndef SP140_STRUCTS_H_
 #define SP140_STRUCTS_H_
 

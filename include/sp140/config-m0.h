@@ -1,4 +1,3 @@
-// Copyright 2021 <Zach Whitehead>
 #ifndef SP140_M0_CONFIG_H_
 #define SP140_M0_CONFIG_H_
 
