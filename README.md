@@ -19,7 +19,7 @@ Suitable for Mac, Windows, and Linux
 ### Setup
 
 1. Follow the instructions here for using with VSCode https://platformio.org/install/ide?install=vscode
-2. Extract the downloaded code from the repo [here](https://github.com/openppg/eppg-controller/archive/master.zip) (or `git clone` it)
+2. Extract the downloaded code from the repo [here](https://github.com/thandal/eppg-controller/archive/master.zip) (or `git clone` it)
 3. Open the folder using the PlatformIO "open project" option inside of VSCode.
 
 ### Flash the OpenPPG Code
