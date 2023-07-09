@@ -6,10 +6,8 @@
 // Set up the barometer
 void setupAltimeter();
 
-// Set the ground altitude for computing Above Ground Level (AGL) altitude.
-void setGroundAltitude(const STR_DEVICE_DATA_140_V1& deviceData);
-
 // Get the altitude (in meters)
-float getAltitude(const STR_DEVICE_DATA_140_V1& deviceData);
+// If setGroundLevel, set the ground altitude for computing Above Ground Level (AGL) to the current altitude.
+float getAltitude(const STR_DEVICE_DATA_140_V1& deviceData, bool setGroundLevel = false);
 
 #endif  // SP140_ALTIMETER_H_

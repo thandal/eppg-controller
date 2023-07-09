@@ -7,15 +7,11 @@ Adafruit_BMP3XX bmp;
 bool bmpPresent = false;
 float groundAltitude = 0;
 
-void setGroundAltitude(const STR_DEVICE_DATA_140_V1& deviceData) {
-  if (bmpPresent && bmp.performReading()) {
-    groundAltitude = bmp.readAltitude(deviceData.sea_pressure);
-  }
-}
-
-float getAltitude(const STR_DEVICE_DATA_140_V1& deviceData) {
-  if (bmpPresent && bmp.performReading()) {
-    return bmp.readAltitude(deviceData.sea_pressure) - groundAltitude;
+float getAltitude(const STR_DEVICE_DATA_140_V1& deviceData, bool setGroundAltitude) {
+  if (bmpPresent) {
+    const float altitude = bmp.readAltitude(deviceData.sea_pressure);
+    if (setGroundAltitude) groundAltitude = altitude;
+    return altitude - groundAltitude;
   }
   return __FLT_MIN__;
 }
