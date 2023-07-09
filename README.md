@@ -1,5 +1,7 @@
 > NOTE: This is a community branch, and is not supported by OpenPPG!!!
+
 > NOTE: It may not be stable and is not recommended for flying.
+
 > See official OpenPPG stable releases [here](https://github.com/openppg/eppg-controller/releases)
 
 # OpenPPG Controller
