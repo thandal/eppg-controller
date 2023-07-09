@@ -181,9 +181,8 @@ void ledBlinkThreadCallback() {
 }
 
 void displayThreadCallback() {
-  // Assuming we arm on the ground
-  if (!armed) setGroundAltitude(deviceData);
-  const float altitude = getAltitude(deviceData);  
+  // Set the ground altitude if not armed (assumes we're on the ground).
+  const float altitude = getAltitude(deviceData, !armed);  
   updateDisplay(
     deviceData, getEscTelemetry(), altitude, armed, cruising, armedStartMillis);
 }
@@ -237,13 +236,13 @@ void setup() {
   displayThread.setInterval(250);
 
   buttonThread.onRun(buttonThreadCallback);
-  buttonThread.setInterval(5);
+  buttonThread.setInterval(50);
 
   throttleThread.onRun(throttleThreadCallback);
   throttleThread.setInterval(22);
 
   escTelemetryThread.onRun(escTelemetryThreadCallback);
-  escTelemetryThread.setInterval(10);
+  escTelemetryThread.setInterval(15);
 
   webUsbThread.onRun(webUsbThreadCallback);
   webUsbThread.setInterval(50);

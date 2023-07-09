@@ -139,22 +139,27 @@ const STR_ESC_TELEMETRY_140& getEscTelemetry() {
 }
 
 void updateEscTelemetry() {
+  // If this function is called slowly, readBytes sometimes includes *part* of the next packet.
+  // But on the next read, we get the start of a new packet, rather than the rest of the packet!?
+  // 1. Why doesn't the timeout cause readBytes to get the full next packet?
+  // 2. Why don't we see the rest of the packet on the *next* read?
+  // As a hack, we just try to parse from the front of the buffer... and it works great!
+
   byte buffer[256];
   escTelemetry.lastReadBytes = SerialESC.readBytes(buffer, 256);
 
-  // DEBUG
-  static unsigned int lastMillis = 0;
-  unsigned int nowMillis = millis();
-  Serial.printf("ESC DATA [%03d] (%03d): ", nowMillis - lastMillis, escTelemetry.lastReadBytes);
-  lastMillis = nowMillis;
-  for (int i = 0; i < escTelemetry.lastReadBytes; i++) {
-    Serial.printf("%02X ", buffer[i]);
-  }
+//  // DEBUG
+//  static unsigned int lastMillis = 0;
+//  unsigned int nowMillis = millis();
+//  Serial.printf("ESC DATA [%03d] (%03d): ", nowMillis - lastMillis, escTelemetry.lastReadBytes);
+//  lastMillis = nowMillis;
+//  for (int i = 0; i < escTelemetry.lastReadBytes; i++) {
+//    Serial.printf("%02X ", buffer[i]);
+//  }
+//  Serial.println();
 
-  Serial.println();
   if (escTelemetry.lastReadBytes >= 22) {
-    //printRawEscData(buffer);
-    parseEscSerialData(&buffer[escTelemetry.lastReadBytes - 22]);
+    parseEscSerialData(buffer);
   }
 }
 
