@@ -191,14 +191,14 @@ void updateDisplay(const STR_DEVICE_DATA_140_V1& deviceData,
     }
   }
 
-  // DEBUG TIMING
-  canvas.setTextSize(1);
-  canvas.setCursor(4, 118);
-  static unsigned int lastDisplayMillis = 0;
-  canvas.printf("%5d  %5d", nowMillis - escTelemetry.lastUpdateMillis, nowMillis - lastDisplayMillis);
-  lastDisplayMillis = nowMillis;
-
-  canvas.printf("  %3d %2d %2d", escTelemetry.lastReadBytes, escTelemetry.errorStopBytes, escTelemetry.errorChecksum);
+//  // DEBUG TIMING
+//  canvas.setTextSize(1);
+//  canvas.setCursor(4, 118);
+//  static unsigned int lastDisplayMillis = 0;
+//  canvas.printf("%5d  %5d", nowMillis - escTelemetry.lastUpdateMillis, nowMillis - lastDisplayMillis);
+//  lastDisplayMillis = nowMillis;
+//
+//  canvas.printf("  %3d %2d %2d", escTelemetry.lastReadBytes, escTelemetry.errorStopBytes, escTelemetry.errorChecksum);
 
   // Draw the canvas to the display.
   display.drawRGBBitmap(0, 0, canvas.getBuffer(), canvas.width(), canvas.height());
