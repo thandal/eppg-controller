@@ -43,34 +43,34 @@ unsigned long prevWattHoursMillis = 0;
 #define VOLT_OFFSET           1.5
 
 
-int checkFlectcher16(byte byteBuffer[], int len) {
-    int c0 = 0;
-    int c1 = 0;
-
-    // Calculate checksum intermediate bytesUInt16
-    for (int i = 0; i < len; i++) { 
-        c0 = (int)(c0 + ((int)byteBuffer[i])) % 255;
-        c1 = (int)(c1 + c0) % 255;
-    }
-    // Assemble the 16-bit checksum value
-    const int fCCRC16 = (c1 << 8) | c0;
-    return (int)fCCRC16;
+uint16_t checkFletcher16(byte buffer[], int len) {
+  // See https://en.wikipedia.org/wiki/Fletcher's_checksum
+  uint16_t c0 = 0;
+  uint16_t c1 = 0;
+  for (int i = 0; i < len; ++i) { 
+    c0 = (c0 + buffer[i]) % 255;
+    c1 = (c1 + c0) % 255;
+  }
+  // Assemble the 16-bit checksum value
+  return (c1 << 8) | c0;
 }
 
 void parseEscSerialData(byte buffer[]) {
   if (buffer[20] != 255 || buffer[21] != 255) {
     escTelemetry.errorStopBytes++;
+    Serial.println("ESC parse error: No stop bytes");
     return; // Stop bytes of 0xFF 0xFF not recieved
   }
 
   // Check the Fletcher checksum
-  // Check only first 18 bytes, skip crc bytes and stop bytes
-  const int checkFletch = checkFlectcher16(buffer, ESC_DATA_V2_SIZE - 4);
-  const int16_t checksum = word(buffer[19], buffer[18]);
+  // Check only first 18 bytes, skip checksum and stop bytes
+  const uint16_t computedChecksum = checkFletcher16(buffer, ESC_DATA_V2_SIZE - 4);
+  const uint16_t checksum = word(buffer[19], buffer[18]);
 
   // Checksums do not match
-  if (checkFletch != checksum) {
+  if (computedChecksum != checksum) {
     escTelemetry.errorChecksum++;
+    Serial.println("ESC parse error: bad checksum");
     return;
   }
 
@@ -134,15 +134,6 @@ void parseEscSerialData(byte buffer[]) {
   escTelemetry.lastUpdateMillis = millis();
 }
 
-// For debugging
-void printRawEscData(byte buffer[]) {
-  Serial.print(F("ESC DATA: "));
-  for (int i = 0; i < ESC_DATA_V2_SIZE; i++) {
-    Serial.printf("%02X ", buffer[i]);
-  }
-  Serial.println();
-}
-
 const STR_ESC_TELEMETRY_140& getEscTelemetry() {
   return escTelemetry;
 }
@@ -150,6 +141,17 @@ const STR_ESC_TELEMETRY_140& getEscTelemetry() {
 void updateEscTelemetry() {
   byte buffer[256];
   escTelemetry.lastReadBytes = SerialESC.readBytes(buffer, 256);
+
+  // DEBUG
+  static unsigned int lastMillis = 0;
+  unsigned int nowMillis = millis();
+  Serial.printf("ESC DATA [%03d] (%03d): ", nowMillis - lastMillis, escTelemetry.lastReadBytes);
+  lastMillis = nowMillis;
+  for (int i = 0; i < escTelemetry.lastReadBytes; i++) {
+    Serial.printf("%02X ", buffer[i]);
+  }
+
+  Serial.println();
   if (escTelemetry.lastReadBytes >= 22) {
     //printRawEscData(buffer);
     parseEscSerialData(&buffer[escTelemetry.lastReadBytes - 22]);

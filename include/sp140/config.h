@@ -16,6 +16,7 @@
 #define ESC_BAUD_RATE         115200
 // ESC packets are transmitted about every 20 ms
 // 22 bytes at 115200 bps should take about 2 ms
+// We set the timeout to 2ms to be very conservative.
 #define ESC_DATA_V2_SIZE      22
 #define ESC_TIMEOUT           2 
 
