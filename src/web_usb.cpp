@@ -38,7 +38,7 @@ String chipId() {
 
   char buf[33];
   // NOTE: we're just using the lower 16 bits of the uint32 vals.
-  snprintf(buf, 33, "%08x%08x%08x%08x",
+  snprintf(buf, sizeof(buf), "%08x%08x%08x%08x",
           (unsigned int)val1,
           (unsigned int)val2,
           (unsigned int)val3,
