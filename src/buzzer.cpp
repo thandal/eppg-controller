@@ -15,12 +15,12 @@ void buzzerNote(uint16_t freq, uint16_t millis) {
   note.f.duration = millis;
   rp2040.fifo.push_nb(note.data);
 #else
-// Blocking buzzer can cause timing issues in the main control loops.
-// TODO(thandal): implement non-blocking buzzer (or use a library like ezBuzzer)
-//  // Blocking tone function that delays for notes
-//  tone(BUZZER_PIN, freq);
-//  delay(millis);  // to distinguish the notes, delay between them
-//  noTone(BUZZER_PIN);
+  // Blocking buzzer may cause timing issues in the main control loops.
+  // TODO(thandal): implement non-blocking buzzer (or use a library like ezBuzzer)
+  // Blocking tone function that delays for notes
+  tone(BUZZER_PIN, freq);
+  delay(millis);  // to distinguish the notes, delay between them
+  noTone(BUZZER_PIN);
 #endif
 }
 
