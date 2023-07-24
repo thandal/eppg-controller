@@ -70,6 +70,7 @@ void handleButtonEvent(AceButton* /* btn */, uint8_t eventType, uint8_t /* st */
     // DISARM
     armed = false;
     cruising = false;
+    throttlePotBuffer.clear();
 
     ledBlinkThread.enabled = true;
     vibrateSequence(100);
@@ -147,6 +148,7 @@ void throttleThreadCallback() {
     uint32_t cruisingSecs = (millis() - cruiseStartMillis) / 1000.0;
     if (cruisingSecs >= CRUISE_GRACE && throttleActive()) {
       cruising = false;
+      throttlePotBuffer.clear();
       vibrateNotify();
       buzzerSequence(500, 500);
     }
