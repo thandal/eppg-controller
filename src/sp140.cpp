@@ -45,7 +45,7 @@ static STR_DEVICE_DATA_140_V1 deviceData;
 
 int getAvgPot() {
   int avgPot = 0;
-  for (decltype(throttlePotBuffer)::index_t i = 0; i < throttlePotBuffer.size(); i++) {
+  for (decltype(throttlePotBuffer)::index_t i = 0; i < throttlePotBuffer.size(); ++i) {
     avgPot += throttlePotBuffer[i];
   }
   if (throttlePotBuffer.size() > 1) avgPot /= throttlePotBuffer.size();
@@ -53,7 +53,7 @@ int getAvgPot() {
 }
 
 // Returns true if the throttlePot is above the safe threshold
-bool throttleActive() {
+bool getThrottleActive() {
   return throttlePot.getValue() > POT_SAFE_LEVEL;
 }
 
@@ -65,12 +65,12 @@ void setLEDs(byte state) {
 void handleButtonEvent(AceButton* /* btn */, uint8_t eventType, uint8_t /* st */) {
   const bool doubleClick = eventType == AceButton::kEventDoubleClicked;
   const bool longPress = eventType == AceButton::kEventLongPressed;
+  const bool throttleActive = getThrottleActive();
 
   if (doubleClick && armed) {
     // DISARM
     armed = false;
     cruising = false;
-    throttlePotBuffer.clear();
 
     ledBlinkThread.enabled = true;
     vibrateSequence(100);
@@ -83,14 +83,15 @@ void handleButtonEvent(AceButton* /* btn */, uint8_t eventType, uint8_t /* st */
     writeDeviceData(&deviceData);
     return;
   }
-  if (doubleClick && !armed && !throttleActive()) {
-    // ARM
+  if (doubleClick && !armed && !throttleActive) {
     // Don't allow immediate rearming
     const unsigned int currentMillis = millis();
     if (currentMillis - armedStartMillis < 2000) {
       return;
     }
 
+    // ARM
+    throttlePotBuffer.clear();
     armed = true;
     armedStartMillis = currentMillis;
 
@@ -100,17 +101,16 @@ void handleButtonEvent(AceButton* /* btn */, uint8_t eventType, uint8_t /* st */
     buzzerSequence(1760, 1976, 2093);
     return;
   }
-  if (longPress && armed && !cruising && throttleActive()) {
+  if (longPress && armed && !cruising && throttleActive) {
     cruising = true;
     vibrateNotify();
     buzzerSequence(900, 900);
     return;
   }
-  if (longPress && !cruising && !throttleActive()) {
+  if (longPress && !cruising && !throttleActive) {
     // Toggle the mode: 0=CHILL, 1=SPORT
     deviceData.performance_mode = (deviceData.performance_mode == 0) ? 1 : 0;
     writeDeviceData(&deviceData);
-
     buzzerSequence(900, 1976);
     return;
   }
@@ -146,9 +146,8 @@ void throttleThreadCallback() {
   if (cruising) {
     if (cruiseStartMillis == 0) cruiseStartMillis = millis();
     uint32_t cruisingSecs = (millis() - cruiseStartMillis) / 1000.0;
-    if (cruisingSecs >= CRUISE_GRACE && throttleActive()) {
+    if (cruisingSecs >= CRUISE_GRACE && getThrottleActive()) {
       cruising = false;
-      throttlePotBuffer.clear();
       vibrateNotify();
       buzzerSequence(500, 500);
     }
