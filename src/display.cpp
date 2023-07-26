@@ -4,6 +4,13 @@
 #include "sp140/openppg_logo.h"
 #include "sp140/structs.h"
 
+// DEBUG WATCHDOG
+#ifdef RP_PIO
+  #include "hardware/watchdog.h"
+  bool watchdogCausedReboot = false;
+  bool watchdogEnableCausedReboot = false;
+#endif
+
 Adafruit_ST7735 display = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
 GFXcanvas16 canvas(160, 128);
 
@@ -68,6 +75,8 @@ void displayBoot(const STR_DEVICE_DATA_140_V1& deviceData) {
 
 // inital screen setup and config
 void setupDisplay(const STR_DEVICE_DATA_140_V1& deviceData) {
+  watchdogCausedReboot = watchdog_caused_reboot();
+  watchdogEnableCausedReboot = watchdog_enable_caused_reboot();
   display.initR(INITR_BLACKTAB);  // Init ST7735S chip, black tab
   pinMode(TFT_LITE, OUTPUT);
   digitalWrite(TFT_LITE, HIGH);  // Backlight on
@@ -201,6 +210,11 @@ void updateDisplay(
 //  lastDisplayMillis = nowMillis;
 //
 //  canvas.printf("  %3d %2d %2d", escTelemetry.lastReadBytes, escTelemetry.errorStopBytes, escTelemetry.errorChecksum);
+
+  // DEBUG WATCHDOG
+  canvas.setTextSize(1);
+  canvas.setCursor(4, 118);
+  canvas.printf("watchdog %d %d", watchdogCausedReboot, watchdogEnableCausedReboot);
 
   // Draw the canvas to the display.
   display.drawRGBBitmap(0, 0, canvas.getBuffer(), canvas.width(), canvas.height());
