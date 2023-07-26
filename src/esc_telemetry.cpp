@@ -9,15 +9,15 @@
 // ESC serial telemetry packet v2: see https://docs.powerdrives.net/products/uhv/uart-telemetry-output
 typedef struct  {
   // Voltage
-  int16_t rawVolts;
+  uint16_t rawVolts;
   // Temperature
   uint16_t rawTemperature;
   // Current
-  uint16_t rawAmps;
+  int16_t rawAmps;
   // Reserved
   uint16_t R0;
   // eRPM
-  int32_t rawRpm;
+  uint32_t rawRpm;
   // Input Duty
   uint16_t dutyIn;
   // Motor Duty
