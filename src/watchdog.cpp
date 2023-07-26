@@ -5,7 +5,6 @@
   #include <Adafruit_SleepyDog.h>  // watchdog
 #elif RP_PIO
   #include "hardware/watchdog.h"
-  #include "pico/unique_id.h"
 #endif
 
 void setupWatchdog() {
