@@ -10,12 +10,15 @@
 #include "sp140/watchdog.h"
 #include "sp140/web_usb.h"
 
+#include <Arduino.h>
 #include <AceButton.h>             // button clicks
 #include <CircularBuffer.h>        // smooth out readings
 #include <ResponsiveAnalogRead.h>  // smoothing for throttle
 #include <Servo.h>                 // to control ESC
 #include <StaticThreadController.h>
 #include <Thread.h>
+
+#include <Adafruit_TinyUSB.h>      // Included here so that Serial is compatible with TinyUSB
 
 using ace_button::AceButton;
 using ace_button::ButtonConfig;
@@ -191,11 +194,13 @@ void displayThreadCallback() {
 
 void webUsbLineStateCallback(bool connected) {
   digitalWrite(LED_SW, connected);
+  buzzerSequence(900, 300);
   if (connected) sendWebUsbSerial(deviceData);
 }
 
 void webUsbThreadCallback() {
   if (!armed && parseWebUsbSerial(&deviceData)) {
+    buzzerSequence(300, 300, 900);
     writeDeviceData(&deviceData);
     resetRotation(deviceData.screen_rotation);  // Screen orientation may have changed
     sendWebUsbSerial(deviceData);
@@ -228,7 +233,7 @@ void setup() {
   setupVibrate();
   setupWebUsbSerial(webUsbLineStateCallback);
   setupDisplay(deviceData);
-  delay(2000);  // Let the startup screen show for 2 s
+  delay(1000);  // Let the startup screen show for 1 s
   setupWatchdog();
 
   ledBlinkThread.onRun(ledBlinkThreadCallback);
