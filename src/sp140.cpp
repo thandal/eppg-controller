@@ -18,8 +18,6 @@
 #include <StaticThreadController.h>
 #include <Thread.h>
 
-#include <Adafruit_TinyUSB.h>      // Included here so that Serial is compatible with TinyUSB
-
 using ace_button::AceButton;
 using ace_button::ButtonConfig;
 
@@ -233,6 +231,7 @@ void setup() {
   setupVibrate();
   setupWebUsbSerial(webUsbLineStateCallback);
   setupDisplay(deviceData);
+  buzzerSequence(500, 1000, 2000);
   delay(1000);  // Let the startup screen show for 1 s
   setupWatchdog();
 
