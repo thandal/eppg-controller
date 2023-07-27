@@ -75,8 +75,10 @@ void displayBoot(const STR_DEVICE_DATA_140_V1& deviceData) {
 
 // inital screen setup and config
 void setupDisplay(const STR_DEVICE_DATA_140_V1& deviceData) {
+#ifdef RP_PIO
   watchdogCausedReboot = watchdog_caused_reboot();
   watchdogEnableCausedReboot = watchdog_enable_caused_reboot();
+#endif
   display.initR(INITR_BLACKTAB);  // Init ST7735S chip, black tab
   pinMode(TFT_LITE, OUTPUT);
   digitalWrite(TFT_LITE, HIGH);  // Backlight on
