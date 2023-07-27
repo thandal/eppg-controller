@@ -97,10 +97,10 @@ void sendWebUsbSerial(const STR_DEVICE_DATA_140_V1& deviceData) {
   doc["metric_alt"] = deviceData.metric_alt;
   // HACK: There appears to be an issue with usb_web println, which causes the rp2040 to hang
   // if you try to send more than ~128 bytes!?! So just send partial information.
-  //doc["performance_mode"] = deviceData.performance_mode;
-  //doc["batt_size"] = static_cast<int>(deviceData.batt_size);
-  //doc["sea_pressure"] = static_cast<float>(deviceData.sea_pressure);
-  //doc["device_id"] = chipId().c_str();
+  // doc["performance_mode"] = deviceData.performance_mode;
+  // doc["batt_size"] = static_cast<int>(deviceData.batt_size);
+  // doc["sea_pressure"] = static_cast<float>(deviceData.sea_pressure);
+  // doc["device_id"] = chipId().c_str();
 
   char output[256];
   Serial.println("serializeJSON");
@@ -110,7 +110,7 @@ void sendWebUsbSerial(const STR_DEVICE_DATA_140_V1& deviceData) {
   if (usb_web.connected()) {
     Serial.println("Sending over usb_web");
     // There appears to be an issue with usb_web println and long outputs which causes a hang!
-    usb_web.println(output);  
+    usb_web.println(output);
     usb_web.flush();
   }
 }
