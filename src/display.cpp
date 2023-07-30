@@ -213,12 +213,21 @@ void updateDisplay(
 //
 //  canvas.printf("  %3d %2d %2d", escTelemetry.lastReadBytes, escTelemetry.errorStopBytes, escTelemetry.errorChecksum);
 
-  // DEBUG WATCHDOG
-#ifdef RP_PIO
-  canvas.setTextSize(1);
-  canvas.setCursor(4, 118);
-  canvas.printf("watchdog %d %d", watchdogCausedReboot, watchdogEnableCausedReboot);
-#endif
+//  // DEBUG WATCHDOG
+//  #ifdef RP_PIO
+//    canvas.setTextSize(1);
+//    canvas.setCursor(4, 118);
+//    canvas.printf("watchdog %d %d", watchdogCausedReboot, watchdogEnableCausedReboot);
+//  #endif
+//
+//  // DEBUG FREE MEMORY
+//  #ifdef RP_PIO
+//    canvas.printf("  mem %d", rp2040.getFreeHeap());
+//  #endif
+//
+//  // DEBUG EST temperature
+//  canvas.setCursor(104, 2);
+//  canvas.printf("tmp %0.1f", escTelemetry.temperatureC);
 
   // Draw the canvas to the display.
   display.drawRGBBitmap(0, 0, canvas.getBuffer(), canvas.width(), canvas.height());
