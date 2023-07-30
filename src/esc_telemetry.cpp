@@ -86,25 +86,15 @@ void parseEscSerialData(byte buffer[]) {
   escTelemetry.volts = avgVolts;
 
   // Temperature
-  const int SERIESRESISTOR = 10000;
-  const int NOMINAL_RESISTANCE = 10000;
-  const int NOMINAL_TEMPERATURE = 25;
-  const int BCOEFFICIENT = 3455;
+  const float SERIESRESISTOR = 10000.0;
+  const float NOMINAL_RESISTANCE = 10000.0;
+  const float NOMINAL_TEMPERATURE = 25.0;
+  const float INV_T0 = 1.0 / (NOMINAL_TEMPERATURE + 273.15);
+  const float INV_B = 1.0 / 3455.0;
   // Convert value to resistance
-  float Rntc = (4096 / static_cast<float>(telem.rawTemperature)) - 1;
-  Rntc = SERIESRESISTOR / Rntc;
+  const float Rntc = SERIESRESISTOR / ((4096.0 / telem.rawTemperature) - 1);
   // Compute the temperature
-  float temperature = Rntc / static_cast<float>(NOMINAL_RESISTANCE);  // (R/Ro)
-  temperature = static_cast<float>(log(temperature));  // ln(R/Ro)
-  temperature /= BCOEFFICIENT;  // 1/B * ln(R/Ro)
-  temperature += 1.0 / (static_cast<float>(NOMINAL_TEMPERATURE) + 273.15);  // + (1/To)
-  temperature = 1.0 / temperature;  // Invert
-  temperature -= 273.15;  // convert to Celsius
-  // Filter bad values
-  if (temperature < 0 || temperature > 200) {
-    temperature = 0;
-  }
-  temperature = static_cast<float>(trunc(temperature * 100)) / 100;  // 2 decimal places
+  const float temperature = 1.0 / (log(Rntc / NOMINAL_RESISTANCE) * INV_B + INV_T0) - 273.15;
   escTelemetry.temperatureC = temperature;
 
   // Current
