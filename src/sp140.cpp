@@ -26,6 +26,10 @@ ResponsiveAnalogRead throttlePot(THROTTLE_PIN, false);
 CircularBuffer<int, 8> throttlePotBuffer;
 Servo escControl;
 
+#define ESC_DISARMED_PWM      1010
+#define ESC_MIN_PWM           1030  // ESC min is 1050
+#define ESC_MAX_PWM           1990  // ESC max 1950
+
 Thread ledBlinkThread = Thread();
 Thread displayThread = Thread();
 Thread throttleThread = Thread();
