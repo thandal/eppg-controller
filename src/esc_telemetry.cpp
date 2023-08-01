@@ -37,11 +37,12 @@ static STR_ESC_TELEMETRY_140 escTelemetry;
 CircularBuffer<float, 50> voltsBuffer;
 uint32_t prevWattHoursMillis = 0;
 
-// Calibration
-#define BATT_MIN_V            60.0  // 24 * 2.5V per cell
-#define MAMP_OFFSET           200
-#define VOLT_OFFSET           1.5
 
+#define ESC_BAUD_RATE         115200
+// ESC packets (22 bytes) are transmitted about every 20 ms.
+// 22 bytes at 115200 bps should take about 2 ms.
+// We set the timeout to 2ms to be very conservative.
+#define ESC_TIMEOUT           2
 
 uint16_t checkFletcher16(byte buffer[], int len) {
   // See https://en.wikipedia.org/wiki/Fletcher's_checksum
@@ -58,32 +59,46 @@ uint16_t checkFletcher16(byte buffer[], int len) {
 void parseEscSerialData(byte buffer[]) {
   if (buffer[20] != 255 || buffer[21] != 255) {
     escTelemetry.errorStopBytes++;
-    Serial.println("ESC parse error: No stop bytes");
+    // Serial.println("ESC parse error: no stop bytes");
     return;
   }
 
   // Check the Fletcher checksum
   // Check only first 18 bytes, skip checksum and stop bytes
-  const uint16_t computedChecksum = checkFletcher16(buffer, ESC_DATA_V2_SIZE - 4);
+  const uint16_t computedChecksum = checkFletcher16(buffer, sizeof(STR_ESC_TELEMETRY_140_V2) - 4);
   const uint16_t checksum = word(buffer[19], buffer[18]);
 
   // Checksums do not match
   if (computedChecksum != checksum) {
     escTelemetry.errorChecksum++;
-    Serial.println("ESC parse error: bad checksum");
+    // Serial.println("ESC parse error: bad checksum");
     return;
   }
 
   STR_ESC_TELEMETRY_140_V2 &telem = *reinterpret_cast<STR_ESC_TELEMETRY_140_V2*>(buffer);
 
-  float volts = telem.rawVolts / 100;
-  if (volts > BATT_MIN_V) volts += 1.0;  // Calibration?
+  // Voltage
+  float volts = telem.rawVolts / 100.0;
+  const float kBattMinV = 60.0;   // 24 * 2.5V per cell
+  const float kVoltOffset = 1.5;  // Calibration
+  if (volts > kBattMinV) volts += kVoltOffset;
+
   voltsBuffer.push(volts);
   float avgVolts = 0.0;
   for (decltype(voltsBuffer)::index_t i = 0; i < voltsBuffer.size(); ++i) {
     avgVolts += voltsBuffer[i] / voltsBuffer.size();
   }
   escTelemetry.volts = avgVolts;
+
+  // Current
+  escTelemetry.amps = telem.rawAmps / 12.5;
+  escTelemetry.watts = escTelemetry.amps * escTelemetry.volts;
+
+  // Energy
+  const uint32_t currentMillis = millis();
+  const float deltaHours = (currentMillis - prevWattHoursMillis) / 1000.0 / 3600.0;
+  prevWattHoursMillis = currentMillis;
+  escTelemetry.wattHours += round(escTelemetry.watts * deltaHours);  // TODO: rename to kWh
 
   // Temperature
   const float SERIESRESISTOR = 10000.0;
@@ -96,16 +111,6 @@ void parseEscSerialData(byte buffer[]) {
   // Compute the temperature
   const float temperature = 1.0 / (log(Rntc / NOMINAL_RESISTANCE) * INV_B + INV_T0) - 273.15;
   escTelemetry.temperatureC = temperature;
-
-  // Current
-  escTelemetry.amps = telem.rawAmps / 12.5;
-  escTelemetry.watts = escTelemetry.amps * escTelemetry.volts;
-
-  // Update wattHours
-  const uint32_t currentMillis = millis();
-  const float deltaHours = (currentMillis - prevWattHoursMillis) / 1000.0 / 3600.0;
-  prevWattHoursMillis = currentMillis;
-  escTelemetry.wattHours += round(escTelemetry.watts * deltaHours);
 
   // RPM
   const int POLECOUNT = 62;
@@ -133,10 +138,10 @@ void updateEscTelemetry() {
   // But on the next read, we get the start of a new packet, rather than the rest of the packet!?
   // 1. Why doesn't the timeout cause readBytes to get the full next packet?
   // 2. Why don't we see the rest of the packet on the *next* read?
-  // As a hack, we just try to parse from the front of the buffer... and it works great!
+  // As a hack, we just try to parse from the front of the buffer... and it "works great"!
 
   byte buffer[256];
-  escTelemetry.lastReadBytes = SerialESC.readBytes(buffer, 256);
+  escTelemetry.lastReadBytes = SerialESC.readBytes(buffer, sizeof(buffer));
 
 //  // DEBUG
 //  static unsigned int lastMillis = 0;

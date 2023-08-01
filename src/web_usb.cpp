@@ -103,12 +103,12 @@ void sendWebUsbSerial(const STR_DEVICE_DATA_140_V1& deviceData) {
   // doc["device_id"] = chipId().c_str();
 
   char output[256];
-  Serial.println("serializeJSON");
+  // Serial.println("serializeJSON");
   serializeJson(doc, output, sizeof(output));
-  Serial.println(output);
-  Serial.println(strlen(output));
+  // Serial.println(output);
+  // Serial.println(strlen(output));
   if (usb_web.connected()) {
-    Serial.println("Sending over usb_web");
+    // Serial.println("Sending over usb_web");
     // There appears to be an issue with usb_web println and long outputs which causes a hang!
     usb_web.println(output);
     usb_web.flush();
