@@ -9,15 +9,6 @@
 
 #define DEFAULT_SEA_PRESSURE  1013.25  // millibar
 
-#define ESC_DISARMED_PWM      1010
-#define ESC_MIN_PWM           1030  // ESC min is 1050
-#define ESC_MAX_PWM           1990  // ESC max 1950
-#define ESC_BAUD_RATE         115200
-// ESC packets are transmitted about every 20 ms
-// 22 bytes at 115200 bps should take about 2 ms
-// We set the timeout to 2ms to be very conservative.
-#define ESC_DATA_V2_SIZE      22
-#define ESC_TIMEOUT           2
 
 #define ENABLE_BUZ            true  // enable buzzer
 
