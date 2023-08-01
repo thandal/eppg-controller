@@ -98,7 +98,7 @@ void parseEscSerialData(byte buffer[]) {
   const uint32_t currentMillis = millis();
   const float deltaHours = (currentMillis - prevWattHoursMillis) / 1000.0 / 3600.0;
   prevWattHoursMillis = currentMillis;
-  escTelemetry.wattHours += round(escTelemetry.watts * deltaHours);  // TODO: rename to kWh
+  escTelemetry.wattHours += round(escTelemetry.watts * deltaHours);
 
   // Temperature
   const float SERIESRESISTOR = 10000.0;
