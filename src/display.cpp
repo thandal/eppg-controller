@@ -172,7 +172,7 @@ void updateDisplay(
 
   canvas.setCursor(124, 83);
   canvas.setTextColor(BLACK);
-  canvas.printf("ESC%2d", escTelemetry.statusFlag);
+  canvas.printf("FLAG%2d", escTelemetry.statusFlag);
 
   // Display statusbar
   unsigned int statusBarColor = WHITE;
@@ -204,6 +204,11 @@ void updateDisplay(
     }
   }
 
+  // ESC temperature
+  canvas.setTextSize(1);
+  canvas.setCursor(114, 28);
+  canvas.printf("%0.1f%cC", escTelemetry.temperatureC, (char)247);
+
 //  // DEBUG TIMING
 //  canvas.setTextSize(1);
 //  canvas.setCursor(4, 118);
@@ -224,10 +229,7 @@ void updateDisplay(
 //  #ifdef RP_PIO
 //    canvas.printf("  mem %d", rp2040.getFreeHeap());
 //  #endif
-//
-//  // DEBUG EST temperature
-//  canvas.setCursor(104, 2);
-//  canvas.printf("tmp %0.1f", escTelemetry.temperatureC);
+
 
   // Draw the canvas to the display.
   display.drawRGBBitmap(0, 0, canvas.getBuffer(), canvas.width(), canvas.height());
