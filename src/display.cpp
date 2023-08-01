@@ -207,7 +207,7 @@ void updateDisplay(
   // ESC temperature
   canvas.setTextSize(1);
   canvas.setCursor(114, 28);
-  canvas.printf("%0.1f≈C", escTelemetry.temperatureC);  // Note: the '≈' character shows as a degree symbol on screen 
+  canvas.printf("%0.1f≈C", escTelemetry.temperatureC);  // Note: the '≈' character shows as a degree symbol on screen
 
 //  // DEBUG TIMING
 //  canvas.setTextSize(1);
