@@ -1,11 +1,11 @@
+#include <cstdio>
+
 #include "sp140/config.h"
 #include "sp140/web_usb.h"
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <Adafruit_TinyUSB.h>
-
-#include <cstdio>
 
 Adafruit_USBD_WebUSB usb_web;
 WEBUSB_URL_DEF(landingPage, 1 /*https*/, "config.openppg.com");
