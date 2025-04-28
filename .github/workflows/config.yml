@@ -32,12 +32,12 @@ jobs:
       - name: Build
         run: platformio run
       - name: Archive bin
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: bins
           path: .pio/build/**/firmware.bin
       - name: Save uf2 for RP2040
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: OpenPPG-CRP2040-SP140.uf2
           path: .pio/build/OpenPPG-CRP2040-SP140/firmware.uf2
