@@ -14,7 +14,7 @@ Download releases [here](https://github.com/thandal/eppg-controller/releases)
 
 ## Build and flash firmware using PlatformIO
 
-Suitable for Mac, Windows, and Linux
+Suitable for *Linux*
 
 ### Setup
 
