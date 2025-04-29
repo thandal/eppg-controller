@@ -188,8 +188,7 @@ void ledBlinkThreadCallback() {
 }
 
 void displayThreadCallback() {
-  // Set the ground altitude if not armed (assumes we're on the ground).
-  const float altitude = getAltitude(deviceData, !armed);
+  const float altitude = getAltitude(deviceData);
   updateDisplay(
     deviceData, getEscTelemetry(), altitude, armed, cruising, armedStartMillis);
 }

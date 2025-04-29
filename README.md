@@ -24,7 +24,9 @@ Suitable for *Linux*
 
 ### Flash the OpenPPG Code
 
-1. Click the "PlatformIO Build" button inside of VSCode or enter `platformio run --target upload` in the command line. PlatformIO will automatically download libraries the first time it runs.
+Option 1: Click the "PlatformIO Build" button inside of VSCode or enter `platformio run --target upload` in the command line. PlatformIO will automatically download libraries the first time it runs.
+
+Option 2: Build the PlaformIO project. Then plug in the controller via a USB cable and put it into update mode, then copy the .pio/build/OpenPPG-CRP2040-SP140/firmware.uf2 to the usb drive that appears. The controller will reset and run the new firmware.
 
 ## Config tool
 

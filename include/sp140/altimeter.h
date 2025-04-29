@@ -7,7 +7,6 @@
 void setupAltimeter();
 
 // Get the altitude (in meters)
-// If setGroundLevel, set the ground altitude for computing Above Ground Level (AGL) to the current altitude.
-float getAltitude(const STR_DEVICE_DATA_140_V1& deviceData, bool setGroundLevel = false);
+float getAltitude(const STR_DEVICE_DATA_140_V1& deviceData);
 
 #endif  // INCLUDE_SP140_ALTIMETER_H_

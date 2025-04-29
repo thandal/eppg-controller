@@ -2,7 +2,7 @@
 #define INCLUDE_SP140_CONFIG_H_
 
 #define VERSION_MAJOR         6
-#define VERSION_MINOR         2
+#define VERSION_MINOR         3
 
 #define CRUISE_GRACE          1.5  // 1.5 seconds to get off throttle
 #define POT_SAFE_LEVEL        0.05 * 4096  // 5% or less
